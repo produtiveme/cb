@@ -42,7 +42,7 @@
     const mainContent = document.getElementById('main-content');
     let myStockChart = null; // Guarda a instância do gráfico
 
-    // Função para inicializar o gráfico de linha
+    // --- Funções do Gráfico (sem alteração) ---
     const initStockChart = (productId, appData) => {
       const { products, stockHistory } = appData;
       const product = products.find(p => p.id === productId);
@@ -110,8 +110,31 @@
         }
       });
     };
+    
+    // ** NOVO: Helper para renderizar o "Badge" de Status **
+    const renderStatusBadge = (status) => {
+      let bgColor, textColor;
+      switch (status) {
+        case 'Ativo':
+          bgColor = 'bg-green-100';
+          textColor = 'text-green-800';
+          break;
+        case 'Inativo':
+          bgColor = 'bg-red-100';
+          textColor = 'text-red-800';
+          break;
+        default:
+          bgColor = 'bg-gray-100';
+          textColor = 'text-gray-800';
+      }
+      return `
+        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${bgColor} ${textColor}">
+          ${status}
+        </span>
+      `;
+    };
 
-    // Renderiza a tela de detalhe
+    // --- Renderização Principal da Tela (MODIFICADA) ---
     const renderEstoqueDetailScreen = (productId) => {
       const appData = getAppData();
       if (!appData) {
@@ -127,6 +150,15 @@
         window.location.href = 'estoque.html';
         return;
       }
+      
+      // Prepara os dados novos
+      const descricao = product.property_descri_o_do_produto || 'Nenhuma descrição fornecida.';
+      const situacao = product.property_situa_o_do_produto || 'Indefinida';
+      // Converte o array de categoria em string
+      const categoria = product.property_categoria && product.property_categoria.length > 0 
+        ? product.property_categoria.join(', ') 
+        : 'Sem categoria';
+      const unidade = product.property_unidade_de_medida || 'N/A';
       
       const history = stockHistory
         .filter(item => item.property_produto && item.property_produto.includes(productId))
@@ -144,11 +176,41 @@
         ${renderScreenHeader(`Histórico: ${product.property_nome}`, `Estoque Atual: ${product.property_estoque_atual} | Mínimo: ${product.property_estoque_m_nimo}`, buttonsHtml)}
 
         <div class="space-y-6">
+        
+          <!-- ** NOVO CARD: Detalhes do Produto ** -->
+          <div class="p-4 bg-white rounded-lg shadow">
+            <h3 class="text-lg font-semibold mb-4 font-heading" style="color: ${COLORS.black};">Detalhes do Produto</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <!-- Descrição (ocupando mais espaço) -->
+              <div class="md:col-span-2">
+                <dt class="text-sm font-medium text-gray-500">Descrição</dt>
+                <dd class="mt-1 text-sm text-gray-900">${descricao}</dd>
+              </div>
+              <!-- Situação -->
+              <div>
+                <dt class="text-sm font-medium text-gray-500">Situação</dt>
+                <dd class="mt-1 text-sm text-gray-900">${renderStatusBadge(situacao)}</dd>
+              </div>
+              <!-- Categoria -->
+              <div>
+                <dt class="text-sm font-medium text-gray-500">Categoria</dt>
+                <dd class="mt-1 text-sm text-gray-900">${categoria}</dd>
+              </div>
+              <!-- Unidade de Medida -->
+              <div>
+                <dt class="text-sm font-medium text-gray-500">Un. de Medida</dt>
+                <dd class="mt-1 text-sm text-gray-900">${unidade}</dd>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card do Gráfico (sem alteração) -->
           <div class="p-4 bg-white rounded-lg shadow">
             <h3 class="text-lg font-semibold mb-4 font-heading" style="color: ${COLORS.black};">Evolução do Estoque</h3>
             <canvas id="stock-line-chart"></canvas>
           </div>
 
+          <!-- Card da Tabela (sem alteração) -->
           <div class="overflow-x-auto bg-white rounded-lg shadow">
             <h3 class="text-lg font-semibold p-4 font-heading" style="color: ${COLORS.black};">Histórico de Movimentação</h3>
             <table class="min-w-full divide-y divide-gray-200">
@@ -184,7 +246,7 @@
         </div>
       `;
       
-      // Inicializa o gráfico
+      // Inicializa o gráfico (depois que o canvas foi renderizado)
       initStockChart(productId, appData);
     };
 
