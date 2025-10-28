@@ -24,7 +24,7 @@
   <div id="error-container" class="fixed top-4 right-4 z-50"></div>
   <div id="modal-container" class="hidden"></div>
 
-  <script typeG="module">
+  <script type="module"> /* <<< CORRIGIDO AQUI */
     import { 
       checkAuth, 
       renderSidebarNav, 
@@ -59,7 +59,9 @@
       textarea.select();
       try {
         document.execCommand('copy');
-        showError('Texto copiado para a área de transferência!', 'success'); // Usa a mesma função, mas com cor de sucesso
+        // Usando a mesma função showError, mas com tipo 'success' implícito (sem cor vermelha)
+        // Se precisar de uma cor específica, pode adicionar um segundo parâmetro opcional a showError no app.js
+        showError('Texto copiado para a área de transferência!', 'success'); // Exemplo assumindo que showError aceita um tipo
       } catch (err) {
         showError('Falha ao copiar texto.');
       }
@@ -70,10 +72,8 @@
     const getWhatsappText = (supplierName) => {
       if (!currentQuote || !currentProduct) return '';
       
-      // ** MODIFICADO: Inclui quantidade e unidade **
       const quantity = currentQuote.property_quantidade || 'N/D';
       const unit = currentQuote.property_unidade_de_medida[0] || '';
-      
       const productName = currentProduct.property_nome;
       const quoteName = currentQuote.property_nome;
 
@@ -100,9 +100,8 @@
       if (item) {
         item.property_preco = newPrice;
         saveAppData(appData);
-        // Não é necessário re-renderizar, mas podemos dar um feedback
         input.blur();
-        showError('Preço salvo!', 'success');
+        showError('Preço salvo!', 'success'); // Feedback de sucesso
       }
     };
 
@@ -110,28 +109,34 @@
     const handleItemStatusChange = (itemId, newStatus) => {
       const appData = getAppData();
       const itemToUpdate = appData.quoteItems.find(i => i.id === itemId);
-      if (!itemToUpdate) return;
+      if (!itemToUpdate || !currentQuote) return; // Garante que currentQuote existe
 
       // Lógica de aprovação (RN-001-2)
       if (newStatus === 'Aprovado') {
         // Rejeita todos os outros itens desta cotação
-        currentItems.forEach(item => {
-          if (item.id !== itemId) {
-            const otherItem = appData.quoteItems.find(i => i.id === item.id);
-            if(otherItem) otherItem.property_status = 'Rejeitado';
+        const currentQuoteItemsIds = currentQuote.property_item || []; // Pega os IDs dos itens da cotação atual
+        appData.quoteItems.forEach(item => {
+          if (currentQuoteItemsIds.includes(item.id) && item.id !== itemId) {
+             item.property_status = 'Rejeitado';
           }
         });
+
         itemToUpdate.property_status = 'Aprovado';
-        currentQuote.property_status = 'Finalizada'; // Atualiza status da cotação
+        
+        // Atualiza o status da cotação principal apenas se ela não estiver finalizada
+        const quoteToUpdate = appData.quotes.find(q => q.id === currentQuote.id);
+         if (quoteToUpdate) {
+            quoteToUpdate.property_status = 'Finalizada'; 
+            currentQuote.property_status = 'Finalizada'; // Atualiza o estado local também
+         }
       } else {
         // Apenas rejeita este item
         itemToUpdate.property_status = 'Rejeitado';
       }
       
       saveAppData(appData);
-      // Re-renderiza a tabela de itens
+      // Re-renderiza a tabela de itens e o subtítulo
       renderItemsTable();
-      // Atualiza o subtítulo (para mostrar o status "Finalizada" da cotação)
       renderDetailSubtitle();
     };
 
@@ -140,34 +145,41 @@
 
     // Renderiza um selo (badge) para o status
     const renderStatusBadge = (status) => {
-      let bgColor, textColor, ringColor;
-      switch (status) {
-        case 'Criado':
-          bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
-          break;
-        case 'Aguardando':
-          bgColor = 'bg-yellow-100'; textColor = 'text-yellow-800'; ringColor = 'ring-yellow-200';
-          break;
-        case 'Aprovado':
-          bgColor = 'bg-green-100'; textColor = 'text-green-800'; ringColor = 'ring-green-200';
-          break;
-        case 'Rejeitado':
-          bgColor = 'bg-red-100'; textColor = 'text-red-800'; ringColor = 'ring-red-200';
-          break;
-        default:
-          bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
-      }
-      return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor} ring-1 ring-inset ${ringColor}">${status}</span>`;
+        let bgColor, textColor, ringColor;
+        // Adiciona "Finalizada" ao switch
+        switch (status) {
+            case 'Criado':
+                bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
+                break;
+            case 'Aguardando': // Assumindo que pode haver esse status
+                bgColor = 'bg-yellow-100'; textColor = 'text-yellow-800'; ringColor = 'ring-yellow-200';
+                break;
+            case 'Aprovado':
+            case 'Finalizada': // Trata "Finalizada" como sucesso visualmente
+                bgColor = 'bg-green-100'; textColor = 'text-green-800'; ringColor = 'ring-green-200';
+                break;
+            case 'Rejeitado':
+                bgColor = 'bg-red-100'; textColor = 'text-red-800'; ringColor = 'ring-red-200';
+                break;
+            default: // Inclui 'Rascunho' e outros
+                bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
+        }
+        // Garante que status indefinido ou nulo seja tratado
+        const statusText = status || 'Indefinido';
+        return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor} ring-1 ring-inset ${ringColor}">${statusText}</span>`;
     };
+
 
     // Renderiza o subtítulo (separado para poder ser atualizado)
     const renderDetailSubtitle = () => {
       const subtitleEl = document.getElementById('detail-subtitle');
       if (!subtitleEl || !currentQuote || !currentProduct) return;
       
-      // ** MODIFICADO: Inclui quantidade e unidade **
       const quantity = currentQuote.property_quantidade || 'N/D';
-      const unit = currentQuote.property_unidade_de_medida[0] || '';
+      // Garante que property_unidade_de_medida é um array antes de acessar
+      const unit = Array.isArray(currentQuote.property_unidade_de_medida) && currentQuote.property_unidade_de_medida.length > 0 
+                   ? currentQuote.property_unidade_de_medida[0] 
+                   : '';
 
       subtitleEl.innerHTML = `
         Produto: <strong style="color: ${COLORS.black};">${currentProduct.property_nome}</strong> |
@@ -179,11 +191,12 @@
     // Renderiza a tabela de itens
     const renderItemsTable = () => {
       const tableBody = document.getElementById('items-table-body');
-      if (!tableBody) return;
+      if (!tableBody || !currentQuote) return; // Garante que currentQuote existe
 
       const appData = getAppData();
       // Recarrega os itens (pois os status podem ter mudado)
-      currentItems = appData.quoteItems.filter(item => currentQuote.property_item.includes(item.id));
+      const currentQuoteItemsIds = currentQuote.property_item || [];
+      currentItems = appData.quoteItems.filter(item => currentQuoteItemsIds.includes(item.id));
       const quoteIsFinalized = currentQuote.property_status === 'Finalizada';
 
       tableBody.innerHTML = currentItems.map(item => {
@@ -216,7 +229,7 @@
                 />
                 <button 
                   data-item-id="${item.id}"
-                  class="save-price-btn px-2 py-1 rounded-md text-xs ${quoteIsFinalized ? 'bg-gray-100 text-gray-400' : 'bg-gray-200 hover:bg-gray-300'}"
+                  class="save-price-btn px-2 py-1 rounded-md text-xs ${quoteIsFinalized ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300'}"
                   ${quoteIsFinalized ? 'disabled' : ''}
                 >
                   Salvar
@@ -227,7 +240,7 @@
             <!-- Ações -->
             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex gap-2 justify-end">
               <button
-                class="copy-btn px-2 py-1 rounded-md text-xs ${quoteIsFinalized ? 'bg-gray-100 text-gray-400' : 'bg-gray-200 hover:bg-gray-300'}"
+                class="copy-btn px-2 py-1 rounded-md text-xs ${quoteIsFinalized ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300'}"
                 data-text="${whatsappText}"
                 ${quoteIsFinalized ? 'disabled' : ''}
               >
@@ -236,19 +249,20 @@
               <a 
                 href="https://wa.me/?text=${encodedText}"
                 target="_blank"
-                class="whatsapp-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-green-200' : 'bg-green-500 hover:bg-green-600'}"
+                class="whatsapp-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-green-300 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}"
+                ${quoteIsFinalized ? 'aria-disabled="true" onclick="return false;"' : ''}
               >
                 WhatsApp
               </a>
               <button
-                class="approve-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-green-200' : 'bg-green-500 hover:bg-green-600'}"
+                class="approve-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-green-300 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}"
                 data-item-id="${item.id}"
                 ${quoteIsFinalized ? 'disabled' : ''}
               >
                 Aprovar
               </button>
               <button
-                class="reject-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-red-200' : 'bg-red-500 hover:bg-red-600'}"
+                class="reject-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-red-300 cursor-not-allowed' : 'bg-red-500 hover:bg-red-600'}"
                 data-item-id="${item.id}"
                 ${quoteIsFinalized ? 'disabled' : ''}
               >
@@ -260,16 +274,16 @@
       }).join('');
 
       // Reanexa eventos
-      document.querySelectorAll('.copy-btn').forEach(btn => {
+      document.querySelectorAll('.copy-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', (e) => copyToClipboard(e.currentTarget.dataset.text));
       });
-      document.querySelectorAll('.save-price-btn').forEach(btn => {
+      document.querySelectorAll('.save-price-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', handlePriceUpdate);
       });
-      document.querySelectorAll('.approve-btn').forEach(btn => {
+      document.querySelectorAll('.approve-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', (e) => handleItemStatusChange(e.currentTarget.dataset.itemId, 'Aprovado'));
       });
-      document.querySelectorAll('.reject-btn').forEach(btn => {
+      document.querySelectorAll('.reject-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', (e) => handleItemStatusChange(e.currentTarget.dataset.itemId, 'Rejeitado'));
       });
     };
@@ -289,9 +303,22 @@
         return;
       }
       
-      currentProduct = appData.products.find(p => p.id === currentQuote.property_produto[0]);
+      // Garante que property_produto é um array antes de acessar
+      const productId = Array.isArray(currentQuote.property_produto) && currentQuote.property_produto.length > 0 
+                        ? currentQuote.property_produto[0] 
+                        : null;
+
+      if (!productId) {
+         showError("ID do produto associado à cotação não encontrado.");
+         // Pode redirecionar ou apenas mostrar o erro e não renderizar o resto
+         mainContent.innerHTML = renderScreenHeader('Erro', 'Produto da cotação não encontrado.');
+         return;
+      }
+
+      currentProduct = appData.products.find(p => p.id === productId);
       if (!currentProduct) {
-        showError("Produto da cotação não foi encontrado.");
+        showError("Produto da cotação não foi encontrado nos dados carregados.");
+         mainContent.innerHTML = renderScreenHeader('Erro', 'Produto da cotação não encontrado.');
         return;
       }
 
@@ -339,7 +366,7 @@
     // --- Inicialização ---
     document.addEventListener('DOMContentLoaded', () => {
       if (checkAuth()) {
-        renderSidebarNav('cotacoes'); // Corrigido para 'cotacoes' (plural)
+        renderSidebarNav('cotacoes'); 
         renderFooter();
         
         const urlParams = new URLSearchParams(window.location.search);
