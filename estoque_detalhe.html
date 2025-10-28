@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detalhe da Cotação - Curral Burguer Gestão</title>
+  <title>Detalhe do Estoque - Curral Burguer Gestão</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Inter', sans-serif; background-color: #FFF9F3; }
@@ -32,193 +33,218 @@
       renderLoading,
       showError,
       getAppData,
-      saveAppData,
-      getProductName,
-      getSupplierName,
+      formatDate,
       COLORS
     } from './app.js';
 
     const mainContent = document.getElementById('main-content');
-    let currentQuoteId = null;
+    let stockChart = null; // Guarda a instância do gráfico
 
-    // Renderiza a tela de detalhe
-    const renderCotacaoDetailScreen = (quoteId) => {
-      currentQuoteId = quoteId;
+    // Renderiza um selo (badge) para o status do produto
+    const renderStatusBadge = (status) => {
+      const isActive = status === 'Ativo';
+      const bgColor = isActive ? 'bg-green-100' : 'bg-gray-100';
+      const textColor = isActive ? 'text-green-800' : 'text-gray-800';
+      return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor}">${status}</span>`;
+    };
+
+    // Renderiza a tela principal
+    const renderEstoqueDetailScreen = (productId) => {
       const appData = getAppData();
       if (!appData) {
         showError("Falha ao carregar dados.");
         return;
       }
 
-      const { quotes, quoteItems } = appData;
-      const quote = quotes.find(q => q.id === quoteId);
+      const { products, stockHistory } = appData;
+      const product = products.find(p => p.id === productId);
 
-      if (!quote) {
-        showError("Cotação não encontrada.");
-        window.location.href = 'cotacoes.html';
+      if (!product) {
+        showError("Produto não encontrado.");
+        window.location.href = 'estoque.html';
         return;
       }
-      
-      const items = quoteItems.filter(item => item.property_cota_o.includes(quoteId));
-      const isQuoteFinalized = quote.property_status === 'Concluída' || quote.property_status === 'Cancelada';
 
-      const getWhatsappText = (item) => {
-        const supplierName = getSupplierName(item.property_fornecedor[0]);
-        const productName = getProductName(quote.property_produto[0]);
-        return encodeURI(`Olá ${supplierName}, gostaria de cotar o seguinte item: ${productName}. Poderia me passar o valor? Obrigado!`);
-      };
+      const history = stockHistory
+        .filter(item => item.property_produto.includes(productId))
+        .sort((a, b) => new Date(a.property_criado_em) - new Date(b.property_criado_em)); // Ordena do mais antigo ao mais novo
 
+      // Botões do Cabeçalho
       const buttonsHtml = `
-        <a href="cotacoes.html"
-          class="px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
-        >
-          &larr; Voltar para Lista
-        </a>
-      `;
-      
-      mainContent.innerHTML = `
-        ${renderScreenHeader(quote.property_nome, `Produto: ${getProductName(quote.property_produto[0])} | Status: ${quote.property_status}`, buttonsHtml)}
-        
-        <div class="space-y-4">
-          ${items.map(item => {
-            const supplierName = getSupplierName(item.property_fornecedor[0]);
-            return `
-              <div key="${item.id}" class="p-4 bg-white rounded-lg shadow grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <!-- Coluna 1: Fornecedor e Status -->
-                <div>
-                  <h4 class="font-bold text-lg">${supplierName}</h4>
-                  <span class="px-2 py-1 text-xs font-semibold rounded-full ${
-                    item.property_status === 'Criado' ? 'bg-blue-100 text-blue-800' :
-                    item.property_status === 'Aprovado' ? 'bg-green-100 text-green-800' :
-                    item.property_status === 'Rejeitado' ? 'bg-red-100 text-red-800' :
-                    'bg-gray-100 text-gray-800'
-                  }">
-                    ${item.property_status}
-                  </span>
-                </div>
-                
-                <!-- Coluna 2: Preço e WhatsApp -->
-                <div class="flex flex-col md:flex-row gap-2 items-center">
-                  <input
-                    data-item-id="${item.id}"
-                    type="number"
-                    placeholder="R$ 0,00"
-                    value="${item.property_preco || ''}"
-                    ${isQuoteFinalized ? 'disabled' : ''}
-                    class="price-input w-full md:w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 disabled:bg-gray-100"
-                    style="--tw-ring-color: ${COLORS.orange};"
-                  />
-                  <a
-                    href="https://wa.me/?text=${getWhatsappText(item)}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="w-full md:w-auto text-center px-4 py-2 rounded-md text-sm font-medium text-white"
-                    style="background-color: #25D366;"
-                  >
-                    WhatsApp
-                  </a>
-                </div>
-
-                <!-- Coluna 3: Ações -->
-                <div class="flex gap-2">
-                  ${!isQuoteFinalized ? `
-                    <button
-                      data-item-id="${item.id}"
-                      data-quote-id="${quote.id}"
-                      class="approve-btn flex-1 px-4 py-2 rounded-md text-sm font-medium text-white"
-                      style="background-color: ${COLORS.orange};" <!-- ** CORREÇÃO: Usando COLORS.orange ** -->
-                    >
-                      Aprovar
-                    </button>
-                    <button
-                      data-item-id="${item.id}"
-                      class="reject-btn flex-1 px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
-                    >
-                      Rejeitar
-                    </button>
-                  ` : item.property_status === 'Aprovado' ? `
-                    <p class="text-green-700 font-bold text-center">Item Aprovado</p>
-                  ` : item.property_status === 'Rejeitado' ? `
-                     <p class="text-red-700 font-bold text-center">Item Rejeitado</p>
-                  ` : ''}
-                </div>
-              </div>
-            `;
-          }).join('')}
+        <div class="flex gap-2">
+          <a href="estoque.html"
+            class="px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
+          >
+            &larr; Voltar para Estoque
+          </a>
+          <a href="${product.url}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-4 py-2 rounded-md text-sm font-medium text-white flex items-center"
+            style="background-color: ${COLORS.orange};"
+          >
+            <!-- Ícone Notion (simplificado) -->
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M16 17v-4a2 2 0 00-2-2h-4a2 2 0 00-2 2v4"></path></svg>
+            Abrir no Notion
+          </a>
         </div>
       `;
       
-      // Adiciona eventos
-      document.querySelectorAll('.price-input').forEach(input => input.addEventListener('blur', handlePriceUpdate));
-      document.querySelectorAll('.approve-btn').forEach(btn => btn.addEventListener('click', handleApproveItem));
-      document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', handleRejectItem));
+      mainContent.innerHTML = `
+        ${renderScreenHeader(`Histórico: ${product.property_nome}`, `Estoque Atual: ${product.property_estoque_atual}`, buttonsHtml)}
+        
+        <!-- Card de Detalhes do Produto -->
+        <div class="bg-white p-4 rounded-lg shadow mb-6">
+          <h3 class="text-lg font-bold font-heading mb-3" style="color: ${COLORS.black};">Detalhes do Produto</h3>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-500">Descrição</label>
+              <p class="text-gray-900 font-medium">${product.property_descri_o_do_produto || 'N/D'}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-500">Situação</label>
+              <p class="text-gray-900 font-medium">${renderStatusBadge(product.property_situa_o_do_produto || 'N/D')}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-500">Categoria</label>
+              <p class="text-gray-900 font-medium">${product.property_categoria[0] || 'N/D'}</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-500">Un. de Medida</label>
+              <p class="text-gray-900 font-medium">${product.property_unidade_de_medida || 'N/D'}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card do Gráfico -->
+        <div class="bg-white p-4 rounded-lg shadow mb-6">
+          <h3 class="text-lg font-bold font-heading mb-3" style="color: ${COLORS.black};">Evolução do Estoque</h3>
+          <canvas id="stockChartCanvas"></canvas>
+        </div>
+
+        <!-- Card da Tabela de Histórico -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <h3 class="text-lg font-bold font-heading p-4" style="color: ${COLORS.black};">Histórico de Movimentação</h3>
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead style="background-color: ${COLORS.azure};">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Data</th>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Movimento</th>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Quantidade</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              ${history.length === 0 ? `
+                <tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">Nenhuma movimentação encontrada.</td></tr>
+              ` : 
+                history.map(item => `
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${formatDate(item.property_criado_em)}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${item.property_movimento === 'Entrada' ? 'text-green-600' : 'text-red-600'}">
+                    ${item.property_movimento}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.property_quantidade}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      // Inicializa o gráfico
+      initStockChart(product, history);
     };
     
-    // --- Handlers ---
-    
-    const handlePriceUpdate = (e) => {
-      const itemId = e.currentTarget.dataset.itemId;
-      const price = e.currentTarget.value;
-      
-      const appData = getAppData();
-      const item = appData.quoteItems.find(i => i.id === itemId);
-      if (item) {
-        item.property_preco = parseFloat(price) || 0;
-        saveAppData(appData);
-        // Não precisa re-renderizar, o valor fica no input
+    // Inicializa o gráfico de estoque
+    const initStockChart = (product, history) => {
+      const ctx = document.getElementById('stockChartCanvas');
+      if (!ctx) return;
+
+      // Destrói gráfico antigo se existir
+      if (stockChart) {
+        stockChart.destroy();
       }
-    };
 
-    const handleApproveItem = (e) => {
-      const itemId = e.currentTarget.dataset.itemId;
-      const quoteId = e.currentTarget.dataset.quoteId;
+      // Calcula o estado do estoque ao longo do tempo
+      const labels = [];
+      const dataPoints = [];
       
-      const appData = getAppData();
-      const quote = appData.quotes.find(q => q.id === quoteId);
-      if (!quote) return;
-
-      const itemIdsInQuote = quote.property_item;
-      appData.quoteItems = appData.quoteItems.map(item => {
-        if (!itemIdsInQuote.includes(item.id)) return item;
-        if (item.id === itemId) {
-          return { ...item, property_status: "Aprovado" };
-        } else if (item.property_status !== "Aprovado") {
-          return { ...item, property_status: "Rejeitado" };
+      // 1. Calcular o estoque inicial (antes do primeiro registro)
+      let currentStock = product.property_estoque_atual;
+      // Subtrai entradas e soma saídas para encontrar o ponto de partida
+      for (let i = history.length - 1; i >= 0; i--) {
+        const item = history[i];
+        if (item.property_movimento === 'Entrada') {
+          currentStock -= item.property_quantidade;
+        } else {
+          currentStock += item.property_quantidade;
         }
-        return item;
+      }
+
+      // 2. Adiciona o ponto de partida (antes da primeira movimentação)
+      if (history.length > 0) {
+        const firstDate = new Date(history[0].property_criado_em);
+        firstDate.setDate(firstDate.getDate() - 1); // Um dia antes
+        labels.push(formatDate(firstDate.toISOString()));
+        dataPoints.push(currentStock);
+      } else {
+         // Se não há histórico, mostra apenas o estoque atual
+         labels.push(formatDate(new Date().toISOString()));
+         dataPoints.push(currentStock);
+         return; // Gráfico não é muito útil, mas os dados estão lá
+      }
+
+      // 3. Processa o histórico cronologicamente
+      history.forEach(item => {
+        if (item.property_movimento === 'Entrada') {
+          currentStock += item.property_quantidade;
+        } else {
+          currentStock -= item.property_quantidade;
+        }
+        labels.push(formatDate(item.property_criado_em));
+        dataPoints.push(currentStock);
       });
 
-      quote.property_status = "Concluída";
-      saveAppData(appData);
-      renderCotacaoDetailScreen(quoteId); // Re-renderiza a tela com novos status
-    };
-    
-    const handleRejectItem = (e) => {
-      const itemId = e.currentTarget.dataset.itemId;
-      
-      const appData = getAppData();
-      appData.quoteItems = appData.quoteItems.map(item => 
-        item.id === itemId ? { ...item, property_status: "Rejeitado" } : item
-      );
-      saveAppData(appData);
-      renderCotacaoDetailScreen(currentQuoteId); // Re-renderiza
+      // 4. Renderiza o gráfico
+      stockChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Quantidade em Estoque',
+            data: dataPoints,
+            borderColor: COLORS.orange,
+            backgroundColor: 'rgba(255, 78, 0, 0.1)',
+            fill: true,
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              beginAtZero: true
+            }
+          }
+        }
+      });
     };
 
-    // --- Inicialização ---
+    // --- Inicialização da Página ---
     document.addEventListener('DOMContentLoaded', () => {
       if (checkAuth()) {
-        renderSidebarNav('cotacoes'); // <-- ** CORREÇÃO: 'cotacoes' (plural) **
+        renderSidebarNav('estoque'); // <-- CORRIGIDO
         renderFooter();
-        renderLoading(mainContent, 'Carregando detalhes da cotação...');
+        renderLoading(mainContent, 'Carregando detalhes do produto...');
         
         const params = new URLSearchParams(window.location.search);
-        const quoteId = params.get('id');
+        const productId = params.get('id'); // <-- CORRIGIDO
 
-        if (quoteId) {
-          setTimeout(() => renderCotacaoDetailScreen(quoteId), 100);
+        if (productId) {
+          setTimeout(() => renderEstoqueDetailScreen(productId), 100); // <-- CORRIGIDO
         } else {
-          showError('ID da cotação não fornecido.');
-          window.location.href = 'cotacoes.html';
+          showError('ID do produto não fornecido.');
+          window.location.href = 'estoque.html'; // <-- CORRIGIDO
         }
       }
     });
