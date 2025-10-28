@@ -10,26 +10,19 @@
     body { font-family: 'Inter', sans-serif; background-color: #FFF9F3; }
     .font-heading { font-family: 'Bricolage Grotesque', sans-serif; }
     #main-content { flex: 1 1 auto; }
-    .product-history-link { cursor: pointer; text-decoration: underline; color: #1E40AF; }
-    .product-history-link:hover { color: #1D4ED8; }
   </style>
 </head>
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
-    <!-- O app.js irá renderizar o menu lateral aqui -->
     <div id="sidebar-container"></div>
-    
-    <!-- Wrapper para main content e footer -->
     <div class="flex-1 flex flex-col">
       <main id="main-content" class="flex-1 p-4 md:p-8 bg-gray-50"></main>
-      <!-- O app.js irá renderizar o rodapé aqui -->
       <div id="footer-container"></div>
     </div>
   </div>
-  
   <div id="error-container" class="fixed top-4 right-4 z-50"></div>
-  <!-- O Modal de Confirmação será injetado aqui pelo app.js -->
+  <div id="modal-container" class="hidden"></div> <!-- Para o modal -->
 
   <script type="module">
     import { 
@@ -39,304 +32,321 @@
       renderScreenHeader,
       renderLoading,
       showError,
-      // ** NOVO: Importando o modal **
-      showConfirmationModal,
+      showConfirmationModal, // Importa o modal
       getAppData,
       saveAppData,
+      getSupplierName,
       COLORS
     } from './app.js';
 
-    // Estado local da página
+    const mainContent = document.getElementById('main-content');
+
+    // Estado local da página (para filtros)
     const pageState = {
-      loading: false,
       filters: {
         name: '',
         status: 'Todos',
         category: 'Todas',
-        lowStockOnly: false
+        lowStock: false,
       },
-      availableCategories: []
+      categories: [],
+      products: [],
+      filteredProducts: []
     };
 
-    const mainContent = document.getElementById('main-content');
-
-    // Helper para extrair categorias únicas
-    const getUniqueCategories = (products) => {
-      const allCategories = products.flatMap(p => p.property_categoria || []);
-      return [...new Set(allCategories)];
-    };
-
-    // ** MODIFICADO: Função separada para renderizar apenas os filtros **
-    const renderFilterCard = () => {
-      const container = document.getElementById('filter-container');
-      if (!container) return;
-
-      const { name, status, category, lowStockOnly } = pageState.filters;
-      
-      const categoryOptions = pageState.availableCategories.map(cat => 
-        `<option value="${cat}" ${category === cat ? 'selected' : ''}>${cat}</option>`
-      ).join('');
-
-      // Definindo a classe do botão de Estoque Baixo
-      const lowStockButtonClass = lowStockOnly
-        ? `w-full px-3 py-2 mt-1 text-sm font-medium text-white rounded-md shadow-sm border border-transparent`
-        : `w-full px-3 py-2 mt-1 text-sm font-medium rounded-md shadow-sm border border-gray-300 bg-white text-gray-700 hover:bg-gray-50`;
-      
-      const lowStockButtonStyle = lowStockOnly ? `background-color: ${COLORS.orange};` : '';
-
-
-      container.innerHTML = `
-        <div class="mb-4 p-4 bg-white rounded-lg shadow">
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-            
-            <!-- Filtro de Nome -->
-            <div class="md:col-span-2">
-              <label for="filter-name" class="block text-sm font-medium text-gray-700">Filtrar por nome</label>
-              <input type="text" id="filter-name" value="${name}"
-                class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-                style="--tw-ring-color: ${COLORS.orange};"
-                placeholder="Digite o nome do produto..."
-              />
-            </div>
-            
-            <!-- Filtro de Situação -->
-            <div>
-              <label for="filter-status" class="block text-sm font-medium text-gray-700">Situação</label>
-              <select id="filter-status"
-                class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-                style="--tw-ring-color: ${COLORS.orange};">
-                <option value="Todos" ${status === 'Todos' ? 'selected' : ''}>Todos</option>
-                <option value="Ativo" ${status === 'Ativo' ? 'selected' : ''}>Ativo</option>
-                <option value="Inativo" ${status === 'Inativo' ? 'selected' : ''}>Inativo</option>
-              </select>
-            </div>
-            
-            <!-- Filtro de Categoria -->
-            <div>
-              <label for="filter-category" class="block text-sm font-medium text-gray-700">Categoria</label>
-              <select id="filter-category"
-                class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-                style="--tw-ring-color: ${COLORS.orange};">
-                <option value="Todas" ${category === 'Todas' ? 'selected' : ''}>Todas</Filtro>
-                ${categoryOptions}
-              </select>
-            </div>
-
-            <!-- Botão de Estoque Baixo -->
-            <div>
-              <label class="block text-sm font-medium text-transparent hidden md:block">&nbsp;</label>
-              <button id="filter-low-stock"
-                class="${lowStockButtonClass}"
-                style="${lowStockButtonStyle}">
-                Estoque Baixo
-              </button>
-            </div>
-
-          </div>
-        </div>
-      `;
-      
-      // Adiciona eventos (apenas nos filtros)
-      document.getElementById('filter-name')?.addEventListener('input', handleFilterChange);
-      document.getElementById('filter-status')?.addEventListener('change', handleFilterChange);
-      document.getElementById('filter-category')?.addEventListener('change', handleFilterChange);
-      document.getElementById('filter-low-stock')?.addEventListener('click', handleFilterChange);
-    };
-
-    // ** NOVO: Função separada para renderizar apenas a tabela **
-    const renderEstoqueTable = () => {
-      const container = document.getElementById('table-container');
-      if (!container) return;
-
-      const appData = getAppData();
-      if (!appData) return;
-      
-      const { products } = appData;
-      const { name, status, category, lowStockOnly } = pageState.filters;
-
-      // Lógica de filtragem
-      const filteredProducts = products.filter(p => {
-        if (name && !p.property_nome.toLowerCase().includes(name.toLowerCase())) return false;
-        if (status !== 'Todos' && p.property_situa_o_do_produto !== status) return false;
-        if (category !== 'Todas' && (!p.property_categoria || !p.property_categoria.includes(category))) return false;
-        if (lowStockOnly && !p.property_alerta_de_estoque) return false;
-        return true;
-      });
-
-      // HTML da Tabela
-      container.innerHTML = `
-        <div class="overflow-x-auto bg-white rounded-lg shadow">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead style="background-color: ${COLORS.azure};">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Produto</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Situação</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Estoque Atual</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Estoque Mínimo</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Ações</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-200">
-              ${filteredProducts.length > 0 ? filteredProducts.map(product => {
-                const estoqueAtual = product.property_estoque_atual || 0;
-                const estoqueMinimo = product.property_estoque_m_nimo || 0;
-                const alerta = product.property_alerta_de_estoque;
-                
-                const situacao = product.property_situa_o_do_produto || 'Indefinida';
-                
-                let estoqueClass = 'text-gray-600';
-                if (alerta) estoqueClass = 'text-red-600 font-bold';
-                
-                return `
-                  <tr key="${product.id}">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <a 
-                        href="estoque_detalhe.html?id=${product.id}"
-                        class="product-history-link font-medium"
-                        title="Ver histórico e detalhes do produto"
-                      >
-                        ${product.property_nome}
-                      </a>
-                      <p class="text-xs text-gray-500">${product.property_categoria ? product.property_categoria.join(', ') : ''}</p>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${situacao}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm ${estoqueClass}">${estoqueAtual}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${estoqueMinimo}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                      <button data-product-id="${product.id}" class="cotar-btn px-3 py-1 rounded-md text-xs font-medium text-white disabled:opacity-50"
-                        style="background-color: ${COLORS.orange};" ${pageState.loading ? 'disabled' : ''}>
-                        Cotar
-                      </button>
-                    </td>
-                  </tr>
-                `;
-              }).join('') : `
-                <tr>
-                  <td colspan="5" class="px-6 py-4 text-center text-gray-500">Nenhum produto encontrado com esses filtros.</td>
-                </tr>
-              `}
-            </tbody>
-          </table>
-        </div>
-      `;
-
-      // Adiciona eventos da tabela
-      document.querySelectorAll('.cotar-btn').forEach(btn => btn.addEventListener('click', handleCreateQuote));
-    };
-
-
-    // Função Principal de Renderização da Tela (MODIFICADA)
-    const renderEstoqueScreen = () => {
-      const appData = getAppData();
-      if (!appData) {
-        showError("Falha ao carregar dados. Tentando novamente...");
-        checkAuth(); // Volta ao login se os dados não existirem
-        return;
-      }
-      
-      // Popula as categorias na primeira renderização
-      if (pageState.availableCategories.length === 0) {
-        pageState.availableCategories = getUniqueCategories(appData.products);
-      }
-      
-      // Define o HTML base da tela
-      mainContent.innerHTML = `
-        ${renderScreenHeader('Controlo de Estoque', 'Acompanhe os níveis de estoque e crie cotações.')}
-        <div id="filter-container"></div>
-        <div id="table-container"></div>
-      `;
-      
-      // Renderiza os componentes separados
-      renderFilterCard();
-      renderEstoqueTable();
-    };
-
-
-    // --- Handlers ---
-    
-    // Handler unificado para filtros
-    const handleFilterChange = (e) => {
-      const { id, value } = e.currentTarget;
-      
-      if (id === 'filter-name') pageState.filters.name = value;
-      if (id === 'filter-status') pageState.filters.status = value;
-      if (id === 'filter-category') pageState.filters.category = value;
-      if (id === 'filter-low-stock') {
-        pageState.filters.lowStockOnly = !pageState.filters.lowStockOnly;
-        // Re-renderiza o card de filtros para atualizar o estilo do botão
-        renderFilterCard(); 
-      }
-      
-      // Re-renderiza APENAS a tabela
-      renderEstoqueTable(); 
-    };
-
-    // ** MODIFICADO: Lógica de Criar Cotação agora usa o Modal **
+    // --- Lógica de Criação de Cotação ---
     const handleCreateQuote = (e) => {
-      // 1. Apenas busca os dados, não ativa o "loading" ainda
       const productId = e.currentTarget.dataset.productId;
       const appData = getAppData();
-      const { products, productSuppliers, quotes, quoteItems } = appData;
+      if (!appData) return;
 
+      const { products, suppliers, productSuppliers } = appData;
       const product = products.find(p => p.id === productId);
       if (!product) {
         showError('Produto não encontrado.');
         return;
       }
 
-      // 2. Conta os fornecedores
-      const productSupplierIds = product.property_fornecedor_do_produto;
+      // Encontra fornecedores únicos para este produto
       const supplierIds = productSuppliers
-        .filter(ps => productSupplierIds.includes(ps.id))
+        .filter(ps => ps.property_produto.includes(productId))
         .map(ps => ps.property_fornecedor[0]);
       const uniqueSupplierIds = [...new Set(supplierIds)];
+      
+      const supplierCount = uniqueSupplierIds.length;
+      const unit = product.property_unidade_de_medida || 'Unidade';
 
-      // 3. Regra 3: Validação de zero fornecedores
-      if (uniqueSupplierIds.length === 0) {
-        showError('Produto sem fornecedores cadastrados. Cotação não pode ser criada.');
+      // 1. Validação (Regra 3)
+      if (supplierCount === 0) {
+        showError(`Produto ${product.property_nome} não tem fornecedores cadastrados. Cotação não pode ser criada.`);
         return;
       }
-      
-      // 4. Regra 2: Constrói a mensagem dinâmica
+
+      // 2. Confirmação (Regras 1 e 2)
+      // ** MODIFICADO: Adiciona input de quantidade **
       const messageHtml = `
         <p>Tem certeza que quer gerar uma nova cotação para o produto <strong>${product.property_nome}</strong>?</p>
-        <p class="mt-2">O estoque atual é de <strong>${product.property_estoque_atual}</strong>.</p>
-        <p class="mt-2">A cotação será criada para <strong>${uniqueSupplierIds.length}</strong> fornecedor(es).</p>
+        <p class="text-sm mt-2">O estoque atual é de <strong>${product.property_estoque_atual}</strong>.</p>
+        <p class="text-sm">A cotação será criada para <strong>${supplierCount}</strong> fornecedor(es).</p>
+        
+        <div class="mt-4">
+          <label for="quote-quantity" class="block text-sm font-medium text-gray-700">
+            Quantidade a Cotar (em ${unit})
+          </label>
+          <input type="number" id="quote-quantity" value="1" min="1"
+            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+            style="--tw-ring-color: ${COLORS.orange};"
+            required
+          >
+        </div>
       `;
-      
-      // 5. Regra 1: Chama o Modal de Confirmação
-      showConfirmationModal('Confirmar Criação de Cotação', messageHtml, () => {
-        // --- Esta é a lógica que só executa no "Confirmar" ---
-        
-        pageState.loading = true;
-        renderEstoqueTable(); // Re-renderiza a tabela para desabilitar botões
 
-        const newQuoteId = `cot-id-${Math.random().toString(36).substr(2, 9)}`;
-        const newQuoteName = `COT-${String(quotes.length + 1).padStart(3, '0')}`;
+      showConfirmationModal("Confirmar Nova Cotação", messageHtml, () => {
+        // ** MODIFICADO: Valida e lê a quantidade **
+        const quantityInput = document.getElementById('quote-quantity');
+        const quantity = parseFloat(quantityInput.value) || 0;
+
+        if (quantity <= 0) {
+          showError('A quantidade deve ser maior que zero.');
+          // Mantém o modal aberto
+          throw new Error("Validation failed"); // Impede o modal de fechar
+        }
+
+        // 3. Lógica de Criação
+        const appData = getAppData(); // Pega os dados mais recentes
+        const newQuoteId = `quote_${new Date().toISOString()}`;
         const newQuote = {
-          id: newQuoteId, name: newQuoteName, property_produto: [productId],
-          property_quantidade: 1, property_unidade_de_medida: [product.property_unidade_de_medida],
-          property_item: [], property_status: "Rascunho", property_nome: newQuoteName
+          id: newQuoteId,
+          name: `COT-${appData.quotes.length + 1}`,
+          url: '', // Será preenchido pelo N8N
+          property_produto: [product.id],
+          property_quantidade: quantity, // <-- ** NOVO **
+          property_unidade_de_medida: [unit], // <-- ** NOVO **
+          property_item: [],
+          property_status: "Rascunho",
+          property_nome: `COT-${appData.quotes.length + 1}`
         };
-        
+
         const newItems = uniqueSupplierIds.map((supplierId, index) => {
-          const newItemId = `item-id-${Math.random().toString(36).substr(2, 9)}`;
-          newQuote.property_item.push(newItemId);
+          const newItemId = `item_${newQuoteId}_${index}`;
+          newQuote.property_item.push(newItemId); // Vincula item à cotação
           return {
-            id: newItemId, name: `${String(index + 1).padStart(3, '0')}`,
-            property_status: "Criado", property_fornecedor: [supplierId],
-            property_cota_o: [newQuoteId], property_produto: [productId],
-            property_nome: `${String(index + 1).padStart(3, '0')}`, property_preco: null
+            id: newItemId,
+            name: `${newQuote.name}-Item-${index + 1}`,
+            url: '',
+            property_status: 'Criado',
+            property_fornecedor: [supplierId],
+            property_cota_o: [newQuoteId],
+            property_produto: [],
+            property_nome: `${newQuote.name}-Item-${index + 1}`,
+            property_preco: 0
           };
         });
 
-        appData.quotes.push(newQuote);
+        // Salva no localStorage
+        appData.quotes.unshift(newQuote); // Adiciona no início
         appData.quoteItems.push(...newItems);
         saveAppData(appData);
 
+        // Navega para a nova cotação
         window.location.href = `cotacao_detalhe.html?id=${newQuoteId}`;
-        // --- Fim da lógica de confirmação ---
       });
+    };
+
+    // --- Lógica de Renderização ---
+
+    // Filtra os produtos com base no estado
+    const applyFilters = () => {
+      const { name, status, category, lowStock } = pageState.filters;
+      pageState.filteredProducts = pageState.products.filter(product => {
+        const nameMatch = name === '' || product.property_nome.toLowerCase().includes(name.toLowerCase());
+        const statusMatch = status === 'Todos' || product.property_situa_o_do_produto === status;
+        const categoryMatch = category === 'Todas' || product.property_categoria.includes(category);
+        const lowStockMatch = !lowStock || (product.property_estoque_atual < product.property_estoque_m_nimo);
+        return nameMatch && statusMatch && categoryMatch && lowStockMatch;
+      });
+      renderEstoqueTable();
+    };
+
+    // Renderiza a tabela de estoque
+    const renderEstoqueTable = () => {
+      const tableBody = document.getElementById('estoque-table-body');
+      if (!tableBody) return;
+
+      tableBody.innerHTML = pageState.filteredProducts.map(product => {
+        const estoqueAtual = product.property_estoque_atual;
+        const estoqueMinimo = product.property_estoque_m_nimo;
+        const alertaEstoque = estoqueAtual < estoqueMinimo;
+
+        return `
+          <tr class="${alertaEstoque ? 'bg-red-50' : ''}">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+              <a href="estoque_detalhe.html?id=${product.id}" 
+                 class="product-detail-link"
+                 style="color: ${COLORS.orange};"
+                 title="Ver histórico de ${product.property_nome}">
+                ${product.property_nome}
+              </a>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${alertaEstoque ? 'font-bold text-red-600' : 'text-gray-700'}">
+              ${estoqueAtual}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${estoqueMinimo}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${product.property_unidade_de_medida || 'N/D'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${product.property_categoria[0] || 'N/D'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <button
+                data-product-id="${product.id}"
+                class="cotar-btn px-3 py-1 rounded-md text-white text-xs"
+                style="background-color: ${COLORS.orange};"
+                title="Criar cotação para ${product.property_nome}"
+              >
+                Cotar
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Reanexa eventos aos novos botões
+      document.querySelectorAll('.cotar-btn').forEach(btn => btn.addEventListener('click', handleCreateQuote));
+    };
+
+    // Renderiza o card de filtros
+    const renderFilterCard = () => {
+      const filterContainer = document.getElementById('filter-container');
+      if (!filterContainer) return;
+      
+      const { name, status, category, lowStock } = pageState.filters;
+
+      filterContainer.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          
+          <!-- Filtro Nome (2 colunas) -->
+          <div class="md:col-span-2">
+            <label for="filter-name" class="block text-sm font-medium text-gray-700">Buscar por nome</label>
+            <input
+              type="text"
+              id="filter-name"
+              value="${name}"
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+              style="--tw-ring-color: ${COLORS.orange};"
+              placeholder="Ex: Batata Frita..."
+            />
+          </div>
+
+          <!-- Filtro Situação -->
+          <div>
+            <label for="filter-status" class="block text-sm font-medium text-gray-700">Situação</label>
+            <select
+              id="filter-status"
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+              style="--tw-ring-color: ${COLORS.orange};"
+            >
+              <option ${status === 'Todos' ? 'selected' : ''}>Todos</option>
+              <option ${status === 'Ativo' ? 'selected' : ''}>Ativo</option>
+              <option ${status === 'Inativo' ? 'selected' : ''}>Inativo</option>
+            </select>
+          </div>
+
+          <!-- Filtro Categoria -->
+          <div>
+            <label for="filter-category" class="block text-sm font-medium text-gray-700">Categoria</label>
+            <select
+              id="filter-category"
+              class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+              style="--tw-ring-color: ${COLORS.orange};"
+            >
+              <option>Todas</option>
+              ${pageState.categories.map(cat => 
+                `<option ${category === cat ? 'selected' : ''}>${cat}</option>`
+              ).join('')}
+            </select>
+          </div>
+
+          <!-- Botão Estoque Baixo -->
+          <div>
+            <button
+              id="filter-low-stock"
+              class="w-full px-4 py-2 rounded-md text-sm font-medium border ${
+                lowStock 
+                ? 'text-white border-transparent' 
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }"
+              style="${lowStock ? `background-color: ${COLORS.orange};` : ''}"
+            >
+              Estoque Baixo
+            </button>
+          </div>
+        </div>
+      `;
+
+      // Adiciona eventos aos filtros (apenas na renderização inicial)
+      document.getElementById('filter-name').addEventListener('input', (e) => {
+        pageState.filters.name = e.target.value;
+        applyFilters();
+      });
+      document.getElementById('filter-status').addEventListener('change', (e) => {
+        pageState.filters.status = e.target.value;
+        applyFilters();
+      });
+      document.getElementById('filter-category').addEventListener('change', (e) => {
+        pageState.filters.category = e.target.value;
+        applyFilters();
+      });
+      document.getElementById('filter-low-stock').addEventListener('click', () => {
+        pageState.filters.lowStock = !pageState.filters.lowStock;
+        // Re-renderiza o botão para mudar a cor
+        document.getElementById('filter-low-stock').style.backgroundColor = pageState.filters.lowStock ? COLORS.orange : 'white';
+        document.getElementById('filter-low-stock').style.color = pageState.filters.lowStock ? 'white' : '#374151';
+        applyFilters();
+      });
+    };
+
+    // Renderiza a tela principal de estoque
+    const renderEstoqueScreen = () => {
+      const appData = getAppData();
+      if (!appData) {
+        showError("Falha ao carregar dados.");
+        return;
+      }
+      
+      // Carrega dados no estado local
+      pageState.products = appData.products;
+      const allCategories = appData.products.flatMap(p => p.property_categoria);
+      pageState.categories = [...new Set(allCategories)].sort(); // Pega categorias únicas
+
+      mainContent.innerHTML = `
+        ${renderScreenHeader('Estoque', 'Acompanhe os níveis de estoque e crie cotações.')}
+        
+        <!-- Card de Filtros -->
+        <div id="filter-container" class="bg-white p-4 rounded-lg shadow mb-6">
+          <!-- Conteúdo dos filtros será renderizado pelo JS -->
+        </div>
+
+        <!-- Tabela de Produtos -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead style="background-color: ${COLORS.azure};">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Nome do Produto</th>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Estoque Atual</th>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Estoque Mínimo</th>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Un. Medida</th>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Categoria</th>
+                <th class="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="estoque-table-body" class="bg-white divide-y divide-gray-200">
+              <!-- Linhas da tabela serão renderizadas pelo JS -->
+            </tbody>
+          </table>
+        </div>
+      `;
+      
+      // Renderiza os filtros e a tabela inicial
+      renderFilterCard();
+      applyFilters(); 
     };
 
     // --- Inicialização ---
@@ -345,11 +355,11 @@
         renderSidebarNav('estoque');
         renderFooter();
         renderLoading(mainContent, 'Carregando estoque...');
-        // Usamos um pequeno timeout para garantir que os dados do localStorage estejam prontos
+        // Oculta a mensagem de erro que pode ter ficado do login
+        document.getElementById('error-container').innerHTML = ''; 
         setTimeout(renderEstoqueScreen, 100); 
       }
     });
-
   </script>
 </body>
 </html>

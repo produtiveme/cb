@@ -22,8 +22,9 @@
     </div>
   </div>
   <div id="error-container" class="fixed top-4 right-4 z-50"></div>
+  <div id="modal-container" class="hidden"></div>
 
-  <script type="module">
+  <script typeG="module">
     import { 
       checkAuth, 
       renderSidebarNav, 
@@ -35,191 +36,323 @@
       saveAppData,
       getProductName,
       getSupplierName,
+      formatDate,
       COLORS
     } from './app.js';
 
     const mainContent = document.getElementById('main-content');
-    let currentQuoteId = null;
 
-    // Renderiza a tela de detalhe
+    // Estado local da página
+    let currentQuote = null;
+    let currentItems = [];
+    let currentProduct = null;
+
+    // --- Lógica de Ações ---
+
+    // Copia o texto para a área de transferência
+    const copyToClipboard = (text) => {
+      // Solução alternativa para `navigator.clipboard` que pode ser bloqueado
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed'; // Previne scroll
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        showError('Texto copiado para a área de transferência!', 'success'); // Usa a mesma função, mas com cor de sucesso
+      } catch (err) {
+        showError('Falha ao copiar texto.');
+      }
+      document.body.removeChild(textarea);
+    };
+
+    // Gera o texto para o WhatsApp
+    const getWhatsappText = (supplierName) => {
+      if (!currentQuote || !currentProduct) return '';
+      
+      // ** MODIFICADO: Inclui quantidade e unidade **
+      const quantity = currentQuote.property_quantidade || 'N/D';
+      const unit = currentQuote.property_unidade_de_medida[0] || '';
+      
+      const productName = currentProduct.property_nome;
+      const quoteName = currentQuote.property_nome;
+
+      return `
+        Olá, ${supplierName}!
+        Gostaria de cotar o seguinte item para o Curral Burguer:
+
+        *Produto:* ${quantity} ${unit} de ${productName}
+        *Cotação:* ${quoteName}
+
+        Poderia me informar o preço e a disponibilidade, por favor?
+        Obrigado!
+      `.trim().replace(/^\s+/gm, ''); // Remove espaços em branco e indentação
+    };
+
+    // Atualiza o preço de um item
+    const handlePriceUpdate = (e) => {
+      const itemId = e.currentTarget.dataset.itemId;
+      const input = document.getElementById(`price-${itemId}`);
+      const newPrice = parseFloat(input.value) || 0;
+
+      const appData = getAppData();
+      const item = appData.quoteItems.find(i => i.id === itemId);
+      if (item) {
+        item.property_preco = newPrice;
+        saveAppData(appData);
+        // Não é necessário re-renderizar, mas podemos dar um feedback
+        input.blur();
+        showError('Preço salvo!', 'success');
+      }
+    };
+
+    // Aprova ou Rejeita um item
+    const handleItemStatusChange = (itemId, newStatus) => {
+      const appData = getAppData();
+      const itemToUpdate = appData.quoteItems.find(i => i.id === itemId);
+      if (!itemToUpdate) return;
+
+      // Lógica de aprovação (RN-001-2)
+      if (newStatus === 'Aprovado') {
+        // Rejeita todos os outros itens desta cotação
+        currentItems.forEach(item => {
+          if (item.id !== itemId) {
+            const otherItem = appData.quoteItems.find(i => i.id === item.id);
+            if(otherItem) otherItem.property_status = 'Rejeitado';
+          }
+        });
+        itemToUpdate.property_status = 'Aprovado';
+        currentQuote.property_status = 'Finalizada'; // Atualiza status da cotação
+      } else {
+        // Apenas rejeita este item
+        itemToUpdate.property_status = 'Rejeitado';
+      }
+      
+      saveAppData(appData);
+      // Re-renderiza a tabela de itens
+      renderItemsTable();
+      // Atualiza o subtítulo (para mostrar o status "Finalizada" da cotação)
+      renderDetailSubtitle();
+    };
+
+
+    // --- Lógica de Renderização ---
+
+    // Renderiza um selo (badge) para o status
+    const renderStatusBadge = (status) => {
+      let bgColor, textColor, ringColor;
+      switch (status) {
+        case 'Criado':
+          bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
+          break;
+        case 'Aguardando':
+          bgColor = 'bg-yellow-100'; textColor = 'text-yellow-800'; ringColor = 'ring-yellow-200';
+          break;
+        case 'Aprovado':
+          bgColor = 'bg-green-100'; textColor = 'text-green-800'; ringColor = 'ring-green-200';
+          break;
+        case 'Rejeitado':
+          bgColor = 'bg-red-100'; textColor = 'text-red-800'; ringColor = 'ring-red-200';
+          break;
+        default:
+          bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
+      }
+      return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor} ring-1 ring-inset ${ringColor}">${status}</span>`;
+    };
+
+    // Renderiza o subtítulo (separado para poder ser atualizado)
+    const renderDetailSubtitle = () => {
+      const subtitleEl = document.getElementById('detail-subtitle');
+      if (!subtitleEl || !currentQuote || !currentProduct) return;
+      
+      // ** MODIFICADO: Inclui quantidade e unidade **
+      const quantity = currentQuote.property_quantidade || 'N/D';
+      const unit = currentQuote.property_unidade_de_medida[0] || '';
+
+      subtitleEl.innerHTML = `
+        Produto: <strong style="color: ${COLORS.black};">${currentProduct.property_nome}</strong> |
+        Qtd: <strong style="color: ${COLORS.black};">${quantity} ${unit}</strong> |
+        Status: ${renderStatusBadge(currentQuote.property_status)}
+      `;
+    };
+
+    // Renderiza a tabela de itens
+    const renderItemsTable = () => {
+      const tableBody = document.getElementById('items-table-body');
+      if (!tableBody) return;
+
+      const appData = getAppData();
+      // Recarrega os itens (pois os status podem ter mudado)
+      currentItems = appData.quoteItems.filter(item => currentQuote.property_item.includes(item.id));
+      const quoteIsFinalized = currentQuote.property_status === 'Finalizada';
+
+      tableBody.innerHTML = currentItems.map(item => {
+        const supplierName = getSupplierName(item.property_fornecedor[0]);
+        const whatsappText = getWhatsappText(supplierName);
+        const encodedText = encodeURIComponent(whatsappText);
+        
+        const isApproved = item.property_status === 'Aprovado';
+        const isRejected = item.property_status === 'Rejeitado';
+
+        return `
+          <tr class="${isApproved ? 'bg-green-50' : (isRejected ? 'bg-red-50 opacity-60' : 'bg-white')}">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${supplierName}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${renderStatusBadge(item.property_status)}</td>
+            
+            <!-- Preço -->
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+              <div class="flex items-center gap-2">
+                <span class="text-gray-500">R$</span>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  min="0"
+                  id="price-${item.id}"
+                  data-item-id="${item.id}"
+                  class="price-input w-24 px-2 py-1 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2"
+                  style="--tw-ring-color: ${COLORS.orange};"
+                  value="${item.property_preco || 0}"
+                  ${quoteIsFinalized ? 'disabled' : ''}
+                />
+                <button 
+                  data-item-id="${item.id}"
+                  class="save-price-btn px-2 py-1 rounded-md text-xs ${quoteIsFinalized ? 'bg-gray-100 text-gray-400' : 'bg-gray-200 hover:bg-gray-300'}"
+                  ${quoteIsFinalized ? 'disabled' : ''}
+                >
+                  Salvar
+                </button>
+              </div>
+            </td>
+
+            <!-- Ações -->
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex gap-2 justify-end">
+              <button
+                class="copy-btn px-2 py-1 rounded-md text-xs ${quoteIsFinalized ? 'bg-gray-100 text-gray-400' : 'bg-gray-200 hover:bg-gray-300'}"
+                data-text="${whatsappText}"
+                ${quoteIsFinalized ? 'disabled' : ''}
+              >
+                Copiar Texto
+              </button>
+              <a 
+                href="https://wa.me/?text=${encodedText}"
+                target="_blank"
+                class="whatsapp-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-green-200' : 'bg-green-500 hover:bg-green-600'}"
+              >
+                WhatsApp
+              </a>
+              <button
+                class="approve-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-green-200' : 'bg-green-500 hover:bg-green-600'}"
+                data-item-id="${item.id}"
+                ${quoteIsFinalized ? 'disabled' : ''}
+              >
+                Aprovar
+              </button>
+              <button
+                class="reject-btn px-2 py-1 rounded-md text-xs text-white ${quoteIsFinalized ? 'bg-red-200' : 'bg-red-500 hover:bg-red-600'}"
+                data-item-id="${item.id}"
+                ${quoteIsFinalized ? 'disabled' : ''}
+              >
+                Rejeitar
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Reanexa eventos
+      document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => copyToClipboard(e.currentTarget.dataset.text));
+      });
+      document.querySelectorAll('.save-price-btn').forEach(btn => {
+        btn.addEventListener('click', handlePriceUpdate);
+      });
+      document.querySelectorAll('.approve-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => handleItemStatusChange(e.currentTarget.dataset.itemId, 'Aprovado'));
+      });
+      document.querySelectorAll('.reject-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => handleItemStatusChange(e.currentTarget.dataset.itemId, 'Rejeitado'));
+      });
+    };
+
+    // Renderiza a tela principal de detalhe
     const renderCotacaoDetailScreen = (quoteId) => {
-      currentQuoteId = quoteId;
       const appData = getAppData();
       if (!appData) {
         showError("Falha ao carregar dados.");
         return;
       }
 
-      const { quotes, quoteItems } = appData;
-      const quote = quotes.find(q => q.id === quoteId);
-
-      if (!quote) {
+      currentQuote = appData.quotes.find(q => q.id === quoteId);
+      if (!currentQuote) {
         showError("Cotação não encontrada.");
         window.location.href = 'cotacoes.html';
         return;
       }
       
-      const items = quoteItems.filter(item => item.property_cota_o.includes(quoteId));
-      const isQuoteFinalized = quote.property_status === 'Concluída' || quote.property_status === 'Cancelada';
+      currentProduct = appData.products.find(p => p.id === currentQuote.property_produto[0]);
+      if (!currentProduct) {
+        showError("Produto da cotação não foi encontrado.");
+        return;
+      }
 
-      const getWhatsappText = (item) => {
-        const supplierName = getSupplierName(item.property_fornecedor[0]);
-        const productName = getProductName(quote.property_produto[0]);
-        return encodeURI(`Olá ${supplierName}, gostaria de cotar o seguinte item: ${productName}. Poderia me passar o valor? Obrigado!`);
-      };
-
-      const buttonsHtml = `
-        <a href="cotacoes.html"
-          class="px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
-        >
-          &larr; Voltar para Lista
-        </a>
-      `;
-      
       mainContent.innerHTML = `
-        ${renderScreenHeader(quote.property_nome, `Produto: ${getProductName(quote.property_produto[0])} | Status: ${quote.property_status}`, buttonsHtml)}
-        
-        <div class="space-y-4">
-          ${items.map(item => {
-            const supplierName = getSupplierName(item.property_fornecedor[0]);
-            return `
-              <div key="${item.id}" class="p-4 bg-white rounded-lg shadow grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                <!-- Coluna 1: Fornecedor e Status -->
-                <div>
-                  <h4 class="font-bold text-lg">${supplierName}</h4>
-                  <span class="px-2 py-1 text-xs font-semibold rounded-full ${
-                    item.property_status === 'Criado' ? 'bg-blue-100 text-blue-800' :
-                    item.property_status === 'Aprovado' ? 'bg-green-100 text-green-800' :
-                    item.property_status === 'Rejeitado' ? 'bg-red-100 text-red-800' :
-                    'bg-gray-100 text-gray-800'
-                  }">
-                    ${item.property_status}
-                  </span>
-                </div>
-                
-                <!-- Coluna 2: Preço e WhatsApp -->
-                <div class="flex flex-col md:flex-row gap-2 items-center">
-                  <input
-                    data-item-id="${item.id}"
-                    type="number"
-                    placeholder="R$ 0,00"
-                    value="${item.property_preco || ''}"
-                    ${isQuoteFinalized ? 'disabled' : ''}
-                    class="price-input w-full md:w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 disabled:bg-gray-100"
-                    style="--tw-ring-color: ${COLORS.orange};"
-                  />
-                  <a
-                    href="https://wa.me/?text=${getWhatsappText(item)}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="w-full md:w-auto text-center px-4 py-2 rounded-md text-sm font-medium text-white"
-                    style="background-color: #25D366;"
-                  >
-                    WhatsApp
-                  </a>
-                </div>
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h1 class="text-3xl font-bold font-heading" style="color: ${COLORS.black};">
+              ${currentQuote.property_nome}
+            </h1>
+            <!-- O subtítulo será renderizado separadamente -->
+            <p id="detail-subtitle" class="text-sm text-gray-500 mt-1"></p>
+          </div>
+          <a 
+            href="cotacoes.html"
+            class="px-4 py-2 rounded-md text-sm font-medium"
+            style="background-color: ${COLORS.azure}; color: ${COLORS.black};"
+          >
+            &larr; Voltar para Cotações
+          </a>
+        </div>
 
-                <!-- Coluna 3: Ações -->
-                <div class="flex gap-2">
-                  ${!isQuoteFinalized ? `
-                    <button
-                      data-item-id="${item.id}"
-                      data-quote-id="${quote.id}"
-                      class="approve-btn flex-1 px-4 py-2 rounded-md text-sm font-medium text-white"
-                      style="background-color: ${COLORS.blue};"
-                    >
-                      Aprovar
-                    </button>
-                    <button
-                      data-item-id="${item.id}"
-                      class="reject-btn flex-1 px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
-                    >
-                      Rejeitar
-                    </button>
-                  ` : item.property_status === 'Aprovado' ? `
-                    <p class="text-green-700 font-bold text-center">Item Aprovado</p>
-                  ` : item.property_status === 'Rejeitado' ? `
-                     <p class="text-red-700 font-bold text-center">Item Rejeitado</p>
-                  ` : ''}
-                </div>
-              </div>
-            `;
-          }).join('')}
+        <!-- Tabela de Itens -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead style="background-color: ${COLORS.azure};">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Fornecedor</th>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Status do Item</th>
+                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Preço (R$)</th>
+                <th class="px-6 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="items-table-body" class="bg-white divide-y divide-gray-200">
+              <!-- Linhas da tabela serão renderizadas pelo JS -->
+            </tbody>
+          </table>
         </div>
       `;
       
-      // Adiciona eventos
-      document.querySelectorAll('.price-input').forEach(input => input.addEventListener('blur', handlePriceUpdate));
-      document.querySelectorAll('.approve-btn').forEach(btn => btn.addEventListener('click', handleApproveItem));
-      document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', handleRejectItem));
-    };
-    
-    // --- Handlers ---
-    
-    const handlePriceUpdate = (e) => {
-      const itemId = e.currentTarget.dataset.itemId;
-      const price = e.currentTarget.value;
-      
-      const appData = getAppData();
-      const item = appData.quoteItems.find(i => i.id === itemId);
-      if (item) {
-        item.property_preco = parseFloat(price) || 0;
-        saveAppData(appData);
-        // Não precisa re-renderizar, o valor fica no input
-      }
-    };
-
-    const handleApproveItem = (e) => {
-      const itemId = e.currentTarget.dataset.itemId;
-      const quoteId = e.currentTarget.dataset.quoteId;
-      
-      const appData = getAppData();
-      const quote = appData.quotes.find(q => q.id === quoteId);
-      if (!quote) return;
-
-      const itemIdsInQuote = quote.property_item;
-      appData.quoteItems = appData.quoteItems.map(item => {
-        if (!itemIdsInQuote.includes(item.id)) return item;
-        if (item.id === itemId) {
-          return { ...item, property_status: "Aprovado" };
-        } else if (item.property_status !== "Aprovado") {
-          return { ...item, property_status: "Rejeitado" };
-        }
-        return item;
-      });
-
-      quote.property_status = "Concluída";
-      saveAppData(appData);
-      renderCotacaoDetailScreen(quoteId); // Re-renderiza a tela com novos status
-    };
-    
-    const handleRejectItem = (e) => {
-      const itemId = e.currentTarget.dataset.itemId;
-      
-      const appData = getAppData();
-      appData.quoteItems = appData.quoteItems.map(item => 
-        item.id === itemId ? { ...item, property_status: "Rejeitado" } : item
-      );
-      saveAppData(appData);
-      renderCotacaoDetailScreen(currentQuoteId); // Re-renderiza
+      // Renderiza o subtítulo e a tabela inicial
+      renderDetailSubtitle();
+      renderItemsTable();
     };
 
     // --- Inicialização ---
     document.addEventListener('DOMContentLoaded', () => {
       if (checkAuth()) {
-        renderSidebarNav('cotacao');
+        renderSidebarNav('cotacoes'); // Corrigido para 'cotacoes' (plural)
         renderFooter();
-        renderLoading(mainContent, 'Carregando detalhes da cotação...');
         
-        const params = new URLSearchParams(window.location.search);
-        const quoteId = params.get('id');
-
-        if (quoteId) {
-          setTimeout(() => renderCotacaoDetailScreen(quoteId), 100);
-        } else {
-          showError('ID da cotação não fornecido.');
+        const urlParams = new URLSearchParams(window.location.search);
+        const quoteId = urlParams.get('id');
+        
+        if (!quoteId) {
+          showError("ID da cotação não fornecido.");
           window.location.href = 'cotacoes.html';
+          return;
         }
+        
+        renderLoading(mainContent, 'Carregando detalhes da cotação...');
+        setTimeout(() => renderCotacaoDetailScreen(quoteId), 100); 
       }
     });
   </script>

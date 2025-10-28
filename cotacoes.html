@@ -22,6 +22,7 @@
     </div>
   </div>
   <div id="error-container" class="fixed top-4 right-4 z-50"></div>
+  <div id="modal-container" class="hidden"></div>
 
   <script type="module">
     import { 
@@ -32,52 +33,88 @@
       renderLoading,
       showError,
       getAppData,
-      getProductName,
+      getProductName, // Helper para buscar nome do produto
+      formatDate,
       COLORS
     } from './app.js';
 
     const mainContent = document.getElementById('main-content');
 
+    // Renderiza um selo (badge) para o status
+    const renderStatusBadge = (status) => {
+      let bgColor, textColor;
+      switch (status) {
+        case 'Rascunho':
+          bgColor = 'bg-gray-100';
+          textColor = 'text-gray-800';
+          break;
+        case 'Aguardando':
+          bgColor = 'bg-yellow-100';
+          textColor = 'text-yellow-800';
+          break;
+        case 'Finalizada':
+          bgColor = 'bg-green-100';
+          textColor = 'text-green-800';
+          break;
+        default:
+          bgColor = 'bg-gray-100';
+          textColor = 'text-gray-800';
+      }
+      return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor}">${status}</span>`;
+    };
+
+    // Renderiza a tela principal de lista de cotações
     const renderCotacaoListScreen = () => {
       const appData = getAppData();
       if (!appData) {
         showError("Falha ao carregar dados.");
         return;
       }
-      
-      const { quotes } = appData;
-      
+
       mainContent.innerHTML = `
-        ${renderScreenHeader('Cotações', 'Gerencie cotações novas e existentes.')}
+        ${renderScreenHeader('Cotações', 'Gerencie todas as suas cotações de produtos.')}
         
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          ${quotes.length === 0 ? '<p>Nenhuma cotação encontrada.</p>' : 
-            quotes.map(quote => `
-            <div key="${quote.id}" class="p-4 bg-white rounded-lg shadow">
-              <div class="flex justify-between items-center mb-2">
-                <h3 class="text-lg font-bold font-heading">
-                  ${quote.property_nome}
-                </h3>
-                <span class="px-2 py-1 text-xs font-semibold rounded-full ${
-                  quote.property_status === 'Rascunho' ? 'bg-yellow-100 text-yellow-800' :
-                  quote.property_status === 'Concluída' ? 'bg-green-100 text-green-800' :
-                  'bg-gray-100 text-gray-800'
-                }">
-                  ${quote.property_status}
-                </span>
-              </div>
-              <p class="text-sm text-gray-600">
-                Produto: ${getProductName(quote.property_produto[0])}
-              </p>
-              <a
-                href="cotacao_detalhe.html?id=${quote.id}"
-                class="block text-center mt-4 w-full px-4 py-2 rounded-md text-sm font-medium text-white"
-                style="background-color: ${COLORS.orange};" <!-- ** CORREÇÃO: Usando COLORS.orange ** -->
-              >
-                Ver Detalhes
-              </a>
-            </div>
-          `).join('')}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          ${appData.quotes.length === 0 ? `
+            <p class="col-span-full text-center text-gray-500">Nenhuma cotação encontrada.</p>
+          ` : 
+            appData.quotes.map(quote => {
+              const productName = getProductName(quote.property_produto[0]);
+              // ** MODIFICADO: Lê a quantidade e unidade **
+              const quantity = quote.property_quantidade || 'N/D';
+              const unit = quote.property_unidade_de_medida[0] || '';
+
+              return `
+                <div classa="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
+                  <h3 class="text-lg font-bold font-heading mb-2" style="color: ${COLORS.black};">
+                    ${quote.property_nome}
+                  </h3>
+                  <div class="mb-2">
+                    <span class="text-sm font-medium text-gray-600">Produto:</span>
+                    <span class="text-sm text-gray-900">${productName}</span>
+                  </div>
+                  
+                  <!-- ** NOVO: Bloco de Quantidade ** -->
+                  <div class="mb-2">
+                    <span class="text-sm font-medium text-gray-600">Quantidade:</span>
+                    <span class="text-sm font-bold text-gray-900">${quantity} ${unit}</span>
+                  </div>
+
+                  <div class="mb-4">
+                    <span class="text-sm font-medium text-gray-600">Status:</span>
+                    ${renderStatusBadge(quote.property_status)}
+                  </div>
+                  <a 
+                    href="cotacao_detalhe.html?id=${quote.id}"
+                    class="w-full text-center px-4 py-2 rounded-md text-sm font-medium text-white inline-block"
+                    style="background-color: ${COLORS.orange};"
+                  >
+                    Ver Detalhes
+                  </a>
+                </div>
+              `
+            }).join('')
+          }
         </div>
       `;
     };
@@ -85,7 +122,7 @@
     // --- Inicialização ---
     document.addEventListener('DOMContentLoaded', () => {
       if (checkAuth()) {
-        renderSidebarNav('cotacoes'); // <-- ** CORREÇÃO: 'cotacoes' (plural) **
+        renderSidebarNav('cotacoes'); // Corrigido para 'cotacoes' (plural)
         renderFooter();
         renderLoading(mainContent, 'Carregando cotações...');
         setTimeout(renderCotacaoListScreen, 100); 
