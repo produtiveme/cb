@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalhe da Cotação - Curral Burguer Gestão</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #FFF9F3; }
+    .font-heading { font-family: 'Bricolage Grotesque', sans-serif; }
+    #main-content { flex: 1 1 auto; }
+  </style>
+</head>
+<body>
+
+  <div class="flex flex-col md:flex-row min-h-screen">
+    <div id="sidebar-container"></div>
+    <div class="flex-1 flex flex-col">
+      <main id="main-content" class="flex-1 p-4 md:p-8 bg-gray-50"></main>
+      <div id="footer-container"></div>
+    </div>
+  </div>
+  <div id="error-container" class="fixed top-4 right-4 z-50"></div>
+
+  <script type="module">
+    import { 
+      checkAuth, 
+      renderSidebarNav, 
+      renderFooter, 
+      renderScreenHeader,
+      renderLoading,
+      showError,
+      getAppData,
+      saveAppData,
+      getProductName,
+      getSupplierName,
+      COLORS
+    } from './app.js';
+
+    const mainContent = document.getElementById('main-content');
+    let currentQuoteId = null;
+
+    // Renderiza a tela de detalhe
+    const renderCotacaoDetailScreen = (quoteId) => {
+      currentQuoteId = quoteId;
+      const appData = getAppData();
+      if (!appData) {
+        showError("Falha ao carregar dados.");
+        return;
+      }
+
+      const { quotes, quoteItems } = appData;
+      const quote = quotes.find(q => q.id === quoteId);
+
+      if (!quote) {
+        showError("Cotação não encontrada.");
+        window.location.href = 'cotacoes.html';
+        return;
+      }
+      
+      const items = quoteItems.filter(item => item.property_cota_o.includes(quoteId));
+      const isQuoteFinalized = quote.property_status === 'Concluída' || quote.property_status === 'Cancelada';
+
+      const getWhatsappText = (item) => {
+        const supplierName = getSupplierName(item.property_fornecedor[0]);
+        const productName = getProductName(quote.property_produto[0]);
+        return encodeURI(`Olá ${supplierName}, gostaria de cotar o seguinte item: ${productName}. Poderia me passar o valor? Obrigado!`);
+      };
+
+      const buttonsHtml = `
+        <a href="cotacoes.html"
+          class="px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
+        >
+          &larr; Voltar para Lista
+        </a>
+      `;
+      
+      mainContent.innerHTML = `
+        ${renderScreenHeader(quote.property_nome, `Produto: ${getProductName(quote.property_produto[0])} | Status: ${quote.property_status}`, buttonsHtml)}
+        
+        <div class="space-y-4">
+          ${items.map(item => {
+            const supplierName = getSupplierName(item.property_fornecedor[0]);
+            return `
+              <div key="${item.id}" class="p-4 bg-white rounded-lg shadow grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                <!-- Coluna 1: Fornecedor e Status -->
+                <div>
+                  <h4 class="font-bold text-lg">${supplierName}</h4>
+                  <span class="px-2 py-1 text-xs font-semibold rounded-full ${
+                    item.property_status === 'Criado' ? 'bg-blue-100 text-blue-800' :
+                    item.property_status === 'Aprovado' ? 'bg-green-100 text-green-800' :
+                    item.property_status === 'Rejeitado' ? 'bg-red-100 text-red-800' :
+                    'bg-gray-100 text-gray-800'
+                  }">
+                    ${item.property_status}
+                  </span>
+                </div>
+                
+                <!-- Coluna 2: Preço e WhatsApp -->
+                <div class="flex flex-col md:flex-row gap-2 items-center">
+                  <input
+                    data-item-id="${item.id}"
+                    type="number"
+                    placeholder="R$ 0,00"
+                    value="${item.property_preco || ''}"
+                    ${isQuoteFinalized ? 'disabled' : ''}
+                    class="price-input w-full md:w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 disabled:bg-gray-100"
+                    style="--tw-ring-color: ${COLORS.orange};"
+                  />
+                  <a
+                    href="https://wa.me/?text=${getWhatsappText(item)}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="w-full md:w-auto text-center px-4 py-2 rounded-md text-sm font-medium text-white"
+                    style="background-color: #25D366;"
+                  >
+                    WhatsApp
+                  </a>
+                </div>
+
+                <!-- Coluna 3: Ações -->
+                <div class="flex gap-2">
+                  ${!isQuoteFinalized ? `
+                    <button
+                      data-item-id="${item.id}"
+                      data-quote-id="${quote.id}"
+                      class="approve-btn flex-1 px-4 py-2 rounded-md text-sm font-medium text-white"
+                      style="background-color: ${COLORS.blue};"
+                    >
+                      Aprovar
+                    </button>
+                    <button
+                      data-item-id="${item.id}"
+                      class="reject-btn flex-1 px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
+                    >
+                      Rejeitar
+                    </button>
+                  ` : item.property_status === 'Aprovado' ? `
+                    <p class="text-green-700 font-bold text-center">Item Aprovado</p>
+                  ` : item.property_status === 'Rejeitado' ? `
+                     <p class="text-red-700 font-bold text-center">Item Rejeitado</p>
+                  ` : ''}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+      
+      // Adiciona eventos
+      document.querySelectorAll('.price-input').forEach(input => input.addEventListener('blur', handlePriceUpdate));
+      document.querySelectorAll('.approve-btn').forEach(btn => btn.addEventListener('click', handleApproveItem));
+      document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', handleRejectItem));
+    };
+    
+    // --- Handlers ---
+    
+    const handlePriceUpdate = (e) => {
+      const itemId = e.currentTarget.dataset.itemId;
+      const price = e.currentTarget.value;
+      
+      const appData = getAppData();
+      const item = appData.quoteItems.find(i => i.id === itemId);
+      if (item) {
+        item.property_preco = parseFloat(price) || 0;
+        saveAppData(appData);
+        // Não precisa re-renderizar, o valor fica no input
+      }
+    };
+
+    const handleApproveItem = (e) => {
+      const itemId = e.currentTarget.dataset.itemId;
+      const quoteId = e.currentTarget.dataset.quoteId;
+      
+      const appData = getAppData();
+      const quote = appData.quotes.find(q => q.id === quoteId);
+      if (!quote) return;
+
+      const itemIdsInQuote = quote.property_item;
+      appData.quoteItems = appData.quoteItems.map(item => {
+        if (!itemIdsInQuote.includes(item.id)) return item;
+        if (item.id === itemId) {
+          return { ...item, property_status: "Aprovado" };
+        } else if (item.property_status !== "Aprovado") {
+          return { ...item, property_status: "Rejeitado" };
+        }
+        return item;
+      });
+
+      quote.property_status = "Concluída";
+      saveAppData(appData);
+      renderCotacaoDetailScreen(quoteId); // Re-renderiza a tela com novos status
+    };
+    
+    const handleRejectItem = (e) => {
+      const itemId = e.currentTarget.dataset.itemId;
+      
+      const appData = getAppData();
+      appData.quoteItems = appData.quoteItems.map(item => 
+        item.id === itemId ? { ...item, property_status: "Rejeitado" } : item
+      );
+      saveAppData(appData);
+      renderCotacaoDetailScreen(currentQuoteId); // Re-renderiza
+    };
+
+    // --- Inicialização ---
+    document.addEventListener('DOMContentLoaded', () => {
+      if (checkAuth()) {
+        renderSidebarNav('cotacao');
+        renderFooter();
+        renderLoading(mainContent, 'Carregando detalhes da cotação...');
+        
+        const params = new URLSearchParams(window.location.search);
+        const quoteId = params.get('id');
+
+        if (quoteId) {
+          setTimeout(() => renderCotacaoDetailScreen(quoteId), 100);
+        } else {
+          showError('ID da cotação não fornecido.');
+          window.location.href = 'cotacoes.html';
+        }
+      }
+    });
+  </script>
+</body>
+</html>
