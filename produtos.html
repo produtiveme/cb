@@ -10,7 +10,6 @@
     body { font-family: 'Inter', sans-serif; background-color: #FFF9F3; }
     .font-heading { font-family: 'Bricolage Grotesque', sans-serif; }
     #main-content { flex: 1 1 auto; }
-    /* ** NOVO: Adicionando a classe de link que usamos no estoque.html ** */
     .product-detail-link { cursor: pointer; text-decoration: underline; color: #1E40AF; }
     .product-detail-link:hover { color: #1D4ED8; }
   </style>
@@ -27,6 +26,7 @@
   </div>
   
   <div id="error-container" class="fixed top-4 right-4 z-50"></div>
+  <!-- O Modal de Confirmação será injetado aqui pelo app.js -->
 
   <script type="module">
     import { 
@@ -36,6 +36,8 @@
       renderScreenHeader,
       renderLoading,
       showError,
+      // ** NOVO: Importando o modal **
+      showConfirmationModal, 
       getAppData,
       saveAppData,
       COLORS
@@ -154,7 +156,6 @@
                 return `
                   <tr key="${product.id}">
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <!-- ** MODIFICADO: Nome do produto agora é um link ** -->
                       <a 
                         href="estoque_detalhe.html?id=${product.id}"
                         class="product-detail-link font-medium"
@@ -223,11 +224,9 @@
       renderProdutosTable(); // Re-renderiza APENAS a tabela
     };
     
-    // Criar Cotação (lógica idêntica ao estoque.html)
+    // ** MODIFICADO: Lógica de Criar Cotação agora usa o Modal **
     const handleCreateQuote = (e) => {
-      pageState.loading = true;
-      renderProdutosTable(); // Re-renderiza a tabela para desabilitar botões
-      
+      // 1. Apenas busca os dados, não ativa o "loading" ainda
       const productId = e.currentTarget.dataset.productId;
       const appData = getAppData();
       const { products, productSuppliers, quotes, quoteItems } = appData;
@@ -235,48 +234,62 @@
       const product = products.find(p => p.id === productId);
       if (!product) {
         showError('Produto não encontrado.');
-        pageState.loading = false;
-        renderProdutosTable();
         return;
       }
 
+      // 2. Conta os fornecedores
       const productSupplierIds = product.property_fornecedor_do_produto;
       const supplierIds = productSuppliers
         .filter(ps => productSupplierIds.includes(ps.id))
         .map(ps => ps.property_fornecedor[0]);
       const uniqueSupplierIds = [...new Set(supplierIds)];
 
+      // 3. Regra 3: Validação de zero fornecedores
       if (uniqueSupplierIds.length === 0) {
-        showError('Produto sem fornecedores cadastrados.');
-        pageState.loading = false;
-        renderProdutosTable();
+        showError('Produto sem fornecedores cadastrados. Cotação não pode ser criada.');
         return;
       }
       
-      const newQuoteId = `cot-id-${Math.random().toString(36).substr(2, 9)}`;
-      const newQuoteName = `COT-${String(quotes.length + 1).padStart(3, '0')}`;
-      const newQuote = {
-        id: newQuoteId, name: newQuoteName, property_produto: [productId],
-        property_quantidade: 1, property_unidade_de_medida: [product.property_unidade_de_medida],
-        property_item: [], property_status: "Rascunho", property_nome: newQuoteName
-      };
+      // 4. Regra 2: Constrói a mensagem dinâmica
+      const messageHtml = `
+        <p>Tem certeza que quer gerar uma nova cotação para o produto <strong>${product.property_nome}</strong>?</p>
+        <p class="mt-2">O estoque atual é de <strong>${product.property_estoque_atual}</strong>.</p>
+        <p class="mt-2">A cotação será criada para <strong>${uniqueSupplierIds.length}</strong> fornecedor(es).</p>
+      `;
       
-      const newItems = uniqueSupplierIds.map((supplierId, index) => {
-        const newItemId = `item-id-${Math.random().toString(36).substr(2, 9)}`;
-        newQuote.property_item.push(newItemId);
-        return {
-          id: newItemId, name: `${String(index + 1).padStart(3, '0')}`,
-          property_status: "Criado", property_fornecedor: [supplierId],
-          property_cota_o: [newQuoteId], property_produto: [productId],
-          property_nome: `${String(index + 1).padStart(3, '0')}`, property_preco: null
+      // 5. Regra 1: Chama o Modal de Confirmação
+      showConfirmationModal('Confirmar Criação de Cotação', messageHtml, () => {
+        // --- Esta é a lógica que só executa no "Confirmar" ---
+        
+        pageState.loading = true;
+        renderProdutosTable(); // Re-renderiza a tabela para desabilitar botões
+
+        const newQuoteId = `cot-id-${Math.random().toString(36).substr(2, 9)}`;
+        const newQuoteName = `COT-${String(quotes.length + 1).padStart(3, '0')}`;
+        const newQuote = {
+          id: newQuoteId, name: newQuoteName, property_produto: [productId],
+          property_quantidade: 1, property_unidade_de_medida: [product.property_unidade_de_medida],
+          property_item: [], property_status: "Rascunho", property_nome: newQuoteName
         };
+        
+        const newItems = uniqueSupplierIds.map((supplierId, index) => {
+          const newItemId = `item-id-${Math.random().toString(36).substr(2, 9)}`;
+          newQuote.property_item.push(newItemId);
+          return {
+            id: newItemId, name: `${String(index + 1).padStart(3, '0')}`,
+            property_status: "Criado", property_fornecedor: [supplierId],
+            property_cota_o: [newQuoteId], property_produto: [productId],
+            property_nome: `${String(index + 1).padStart(3, '0')}`, property_preco: null
+          };
+        });
+
+        appData.quotes.push(newQuote);
+        appData.quoteItems.push(...newItems);
+        saveAppData(appData);
+
+        window.location.href = `cotacao_detalhe.html?id=${newQuoteId}`;
+        // --- Fim da lógica de confirmação ---
       });
-
-      appData.quotes.push(newQuote);
-      appData.quoteItems.push(...newItems);
-      saveAppData(appData);
-
-      window.location.href = `cotacao_detalhe.html?id=${newQuoteId}`;
     };
 
     // --- Inicialização ---

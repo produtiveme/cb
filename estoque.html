@@ -29,6 +29,7 @@
   </div>
   
   <div id="error-container" class="fixed top-4 right-4 z-50"></div>
+  <!-- O Modal de Confirmação será injetado aqui pelo app.js -->
 
   <script type="module">
     import { 
@@ -38,46 +39,56 @@
       renderScreenHeader,
       renderLoading,
       showError,
+      // ** NOVO: Importando o modal **
+      showConfirmationModal,
       getAppData,
       saveAppData,
       COLORS
     } from './app.js';
 
-    // Estado local da página (agora com filtros)
+    // Estado local da página
     const pageState = {
+      loading: false,
       filters: {
         name: '',
         status: 'Todos',
         category: 'Todas',
-        lowStock: true,
+        lowStockOnly: false
       },
-      loading: false,
-      availableCategories: [] // Cache das categorias
+      availableCategories: []
     };
 
     const mainContent = document.getElementById('main-content');
-    
-    // Extrai categorias únicas para o dropdown
+
+    // Helper para extrair categorias únicas
     const getUniqueCategories = (products) => {
       const allCategories = products.flatMap(p => p.property_categoria || []);
       return [...new Set(allCategories)];
     };
 
-    // ** MODIFICADO: Renderiza o card de filtros no container dele **
+    // ** MODIFICADO: Função separada para renderizar apenas os filtros **
     const renderFilterCard = () => {
       const container = document.getElementById('filter-container');
       if (!container) return;
 
-      const { name, status, category, lowStock } = pageState.filters;
+      const { name, status, category, lowStockOnly } = pageState.filters;
       
       const categoryOptions = pageState.availableCategories.map(cat => 
         `<option value="${cat}" ${category === cat ? 'selected' : ''}>${cat}</option>`
       ).join('');
 
-      // ** CORREÇÃO 2: Grid modificado para md:grid-cols-5 **
+      // Definindo a classe do botão de Estoque Baixo
+      const lowStockButtonClass = lowStockOnly
+        ? `w-full px-3 py-2 mt-1 text-sm font-medium text-white rounded-md shadow-sm border border-transparent`
+        : `w-full px-3 py-2 mt-1 text-sm font-medium rounded-md shadow-sm border border-gray-300 bg-white text-gray-700 hover:bg-gray-50`;
+      
+      const lowStockButtonStyle = lowStockOnly ? `background-color: ${COLORS.orange};` : '';
+
+
       container.innerHTML = `
         <div class="mb-4 p-4 bg-white rounded-lg shadow">
           <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            
             <!-- Filtro de Nome -->
             <div class="md:col-span-2">
               <label for="filter-name" class="block text-sm font-medium text-gray-700">Filtrar por nome</label>
@@ -106,30 +117,30 @@
               <select id="filter-category"
                 class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
                 style="--tw-ring-color: ${COLORS.orange};">
-                <option value="Todas" ${category === 'Todas' ? 'selected' : ''}>Todas</option>
+                <option value="Todas" ${category === 'Todas' ? 'selected' : ''}>Todas</Filtro>
                 ${categoryOptions}
               </select>
             </div>
-            
-            <!-- Botão de Estoque Baixo (agora alinhado) -->
-            <div class="flex items-center justify-start md:justify-end">
-              <button id="filter-stock-btn"
-                class="w-full md:w-auto px-4 py-2 rounded-md text-sm font-medium"
-                style="background-color: ${lowStock ? COLORS.orange : COLORS.azure};
-                       color: ${lowStock ? 'white' : COLORS.black};"
-              >
-                ${lowStock ? 'Estoque Baixo' : 'Mostrar Todos'}
+
+            <!-- Botão de Estoque Baixo -->
+            <div>
+              <label class="block text-sm font-medium text-transparent hidden md:block">&nbsp;</label>
+              <button id="filter-low-stock"
+                class="${lowStockButtonClass}"
+                style="${lowStockButtonStyle}">
+                Estoque Baixo
               </button>
             </div>
+
           </div>
         </div>
       `;
       
-      // Adiciona eventos aqui, depois de renderizar
-      document.getElementById('filter-stock-btn')?.addEventListener('click', handleFilterStock);
+      // Adiciona eventos (apenas nos filtros)
       document.getElementById('filter-name')?.addEventListener('input', handleFilterChange);
       document.getElementById('filter-status')?.addEventListener('change', handleFilterChange);
       document.getElementById('filter-category')?.addEventListener('change', handleFilterChange);
+      document.getElementById('filter-low-stock')?.addEventListener('click', handleFilterChange);
     };
 
     // ** NOVO: Função separada para renderizar apenas a tabela **
@@ -138,22 +149,21 @@
       if (!container) return;
 
       const appData = getAppData();
-      if (!appData) {
-        showError("Falha ao carregar dados.");
-        return;
-      }
+      if (!appData) return;
+      
       const { products } = appData;
-      const { name, status, category, lowStock } = pageState.filters;
+      const { name, status, category, lowStockOnly } = pageState.filters;
 
+      // Lógica de filtragem
       const filteredProducts = products.filter(p => {
-        const isLow = p.property_estoque_atual < p.property_estoque_m_nimo;
-        if (lowStock && !isLow) return false;
         if (name && !p.property_nome.toLowerCase().includes(name.toLowerCase())) return false;
         if (status !== 'Todos' && p.property_situa_o_do_produto !== status) return false;
         if (category !== 'Todas' && (!p.property_categoria || !p.property_categoria.includes(category))) return false;
+        if (lowStockOnly && !p.property_alerta_de_estoque) return false;
         return true;
       });
 
+      // HTML da Tabela
       container.innerHTML = `
         <div class="overflow-x-auto bg-white rounded-lg shadow">
           <table class="min-w-full divide-y divide-gray-200">
@@ -162,38 +172,36 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Produto</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Situação</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Estoque Atual</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Estoque Mínimo</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               ${filteredProducts.length > 0 ? filteredProducts.map(product => {
-                const isLow = product.property_estoque_atual < product.property_estoque_m_nimo;
+                const estoqueAtual = product.property_estoque_atual || 0;
+                const estoqueMinimo = product.property_estoque_m_nimo || 0;
+                const alerta = product.property_alerta_de_estoque;
+                
                 const situacao = product.property_situa_o_do_produto || 'Indefinida';
+                
+                let estoqueClass = 'text-gray-600';
+                if (alerta) estoqueClass = 'text-red-600 font-bold';
+                
                 return `
-                  <tr key="${product.id}" class="${isLow ? 'bg-red-50' : ''}">
+                  <tr key="${product.id}">
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <a 
                         href="estoque_detalhe.html?id=${product.id}"
                         class="product-history-link font-medium"
+                        title="Ver histórico e detalhes do produto"
                       >
                         ${product.property_nome}
                       </a>
                       <p class="text-xs text-gray-500">${product.property_categoria ? product.property_categoria.join(', ') : ''}</p>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${situacao}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm ${isLow ? 'font-bold text-red-600' : 'text-gray-600'}">${product.property_estoque_atual}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                      ${isLow ? `
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                          Abaixo do Mínimo
-                        </span>
-                      ` : `
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background-color: ${COLORS.azure}; color: ${COLORS.blue};">
-                          OK
-                        </span>
-                      `}
-                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm ${estoqueClass}">${estoqueAtual}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${estoqueMinimo}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm">
                       <button data-product-id="${product.id}" class="cotar-btn px-3 py-1 rounded-md text-xs font-medium text-white disabled:opacity-50"
                         style="background-color: ${COLORS.orange};" ${pageState.loading ? 'disabled' : ''}>
@@ -218,65 +226,54 @@
 
 
     // Função Principal de Renderização da Tela (MODIFICADA)
-    // ** CORREÇÃO 1: Esta função agora só renderiza a estrutura e chama as funções filhas **
     const renderEstoqueScreen = () => {
       const appData = getAppData();
       if (!appData) {
         showError("Falha ao carregar dados. Tentando novamente...");
-        checkAuth(); 
+        checkAuth(); // Volta ao login se os dados não existirem
         return;
       }
       
-      // Popula as categorias se for a primeira vez
+      // Popula as categorias na primeira renderização
       if (pageState.availableCategories.length === 0) {
         pageState.availableCategories = getUniqueCategories(appData.products);
       }
       
-      // Renderiza a estrutura principal
+      // Define o HTML base da tela
       mainContent.innerHTML = `
-        ${renderScreenHeader('Estoque', 'Filtre e gerencie produtos em estoque.')}
-        
-        <!-- Container para os filtros (não será recarregado) -->
+        ${renderScreenHeader('Controlo de Estoque', 'Acompanhe os níveis de estoque e crie cotações.')}
         <div id="filter-container"></div>
-        
-        <!-- Container para a tabela (será recarregado) -->
         <div id="table-container"></div>
       `;
       
-      // Chama as funções para preencher a estrutura
+      // Renderiza os componentes separados
       renderFilterCard();
       renderEstoqueTable();
     };
 
+
     // --- Handlers ---
     
-    // ** CORREÇÃO 1: Handlers de filtro agora só chamam renderEstoqueTable() **
+    // Handler unificado para filtros
     const handleFilterChange = (e) => {
-      const { id, value } = e.target;
+      const { id, value } = e.currentTarget;
+      
       if (id === 'filter-name') pageState.filters.name = value;
       if (id === 'filter-status') pageState.filters.status = value;
       if (id === 'filter-category') pageState.filters.category = value;
-      
-      renderEstoqueTable(); // Re-renderiza APENAS a tabela
-    };
-
-    const handleFilterStock = () => {
-      pageState.filters.lowStock = !pageState.filters.lowStock;
-      // Atualiza o botão sem recarregar tudo
-      const btn = document.getElementById('filter-stock-btn');
-      if (btn) {
-        btn.textContent = pageState.filters.lowStock ? 'Estoque Baixo' : 'Mostrar Todos';
-        btn.style.backgroundColor = pageState.filters.lowStock ? COLORS.orange : COLORS.azure;
-        btn.style.color = pageState.filters.lowStock ? 'white' : COLORS.black;
+      if (id === 'filter-low-stock') {
+        pageState.filters.lowStockOnly = !pageState.filters.lowStockOnly;
+        // Re-renderiza o card de filtros para atualizar o estilo do botão
+        renderFilterCard(); 
       }
-      renderEstoqueTable(); // Re-renderiza APENAS a tabela
+      
+      // Re-renderiza APENAS a tabela
+      renderEstoqueTable(); 
     };
 
-    // Criar Cotação (Modificado para chamar renderEstoqueTable)
+    // ** MODIFICADO: Lógica de Criar Cotação agora usa o Modal **
     const handleCreateQuote = (e) => {
-      pageState.loading = true;
-      renderEstoqueTable(); // Re-renderiza a tabela para desabilitar botões
-      
+      // 1. Apenas busca os dados, não ativa o "loading" ainda
       const productId = e.currentTarget.dataset.productId;
       const appData = getAppData();
       const { products, productSuppliers, quotes, quoteItems } = appData;
@@ -284,48 +281,62 @@
       const product = products.find(p => p.id === productId);
       if (!product) {
         showError('Produto não encontrado.');
-        pageState.loading = false;
-        renderEstoqueTable();
         return;
       }
 
+      // 2. Conta os fornecedores
       const productSupplierIds = product.property_fornecedor_do_produto;
       const supplierIds = productSuppliers
         .filter(ps => productSupplierIds.includes(ps.id))
         .map(ps => ps.property_fornecedor[0]);
       const uniqueSupplierIds = [...new Set(supplierIds)];
 
+      // 3. Regra 3: Validação de zero fornecedores
       if (uniqueSupplierIds.length === 0) {
-        showError('Produto sem fornecedores cadastrados.');
-        pageState.loading = false;
-        renderEstoqueTable();
+        showError('Produto sem fornecedores cadastrados. Cotação não pode ser criada.');
         return;
       }
       
-      const newQuoteId = `cot-id-${Math.random().toString(36).substr(2, 9)}`;
-      const newQuoteName = `COT-${String(quotes.length + 1).padStart(3, '0')}`;
-      const newQuote = {
-        id: newQuoteId, name: newQuoteName, property_produto: [productId],
-        property_quantidade: 1, property_unidade_de_medida: [product.property_unidade_de_medida],
-        property_item: [], property_status: "Rascunho", property_nome: newQuoteName
-      };
+      // 4. Regra 2: Constrói a mensagem dinâmica
+      const messageHtml = `
+        <p>Tem certeza que quer gerar uma nova cotação para o produto <strong>${product.property_nome}</strong>?</p>
+        <p class="mt-2">O estoque atual é de <strong>${product.property_estoque_atual}</strong>.</p>
+        <p class="mt-2">A cotação será criada para <strong>${uniqueSupplierIds.length}</strong> fornecedor(es).</p>
+      `;
       
-      const newItems = uniqueSupplierIds.map((supplierId, index) => {
-        const newItemId = `item-id-${Math.random().toString(36).substr(2, 9)}`;
-        newQuote.property_item.push(newItemId);
-        return {
-          id: newItemId, name: `${String(index + 1).padStart(3, '0')}`,
-          property_status: "Criado", property_fornecedor: [supplierId],
-          property_cota_o: [newQuoteId], property_produto: [productId],
-          property_nome: `${String(index + 1).padStart(3, '0')}`, property_preco: null
+      // 5. Regra 1: Chama o Modal de Confirmação
+      showConfirmationModal('Confirmar Criação de Cotação', messageHtml, () => {
+        // --- Esta é a lógica que só executa no "Confirmar" ---
+        
+        pageState.loading = true;
+        renderEstoqueTable(); // Re-renderiza a tabela para desabilitar botões
+
+        const newQuoteId = `cot-id-${Math.random().toString(36).substr(2, 9)}`;
+        const newQuoteName = `COT-${String(quotes.length + 1).padStart(3, '0')}`;
+        const newQuote = {
+          id: newQuoteId, name: newQuoteName, property_produto: [productId],
+          property_quantidade: 1, property_unidade_de_medida: [product.property_unidade_de_medida],
+          property_item: [], property_status: "Rascunho", property_nome: newQuoteName
         };
+        
+        const newItems = uniqueSupplierIds.map((supplierId, index) => {
+          const newItemId = `item-id-${Math.random().toString(36).substr(2, 9)}`;
+          newQuote.property_item.push(newItemId);
+          return {
+            id: newItemId, name: `${String(index + 1).padStart(3, '0')}`,
+            property_status: "Criado", property_fornecedor: [supplierId],
+            property_cota_o: [newQuoteId], property_produto: [productId],
+            property_nome: `${String(index + 1).padStart(3, '0')}`, property_preco: null
+          };
+        });
+
+        appData.quotes.push(newQuote);
+        appData.quoteItems.push(...newItems);
+        saveAppData(appData);
+
+        window.location.href = `cotacao_detalhe.html?id=${newQuoteId}`;
+        // --- Fim da lógica de confirmação ---
       });
-
-      appData.quotes.push(newQuote);
-      appData.quoteItems.push(...newItems);
-      saveAppData(appData);
-
-      window.location.href = `cotacao_detalhe.html?id=${newQuoteId}`;
     };
 
     // --- Inicialização ---
@@ -334,6 +345,7 @@
         renderSidebarNav('estoque');
         renderFooter();
         renderLoading(mainContent, 'Carregando estoque...');
+        // Usamos um pequeno timeout para garantir que os dados do localStorage estejam prontos
         setTimeout(renderEstoqueScreen, 100); 
       }
     });
