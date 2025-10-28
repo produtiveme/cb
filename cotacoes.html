@@ -72,7 +72,7 @@
               <a
                 href="cotacao_detalhe.html?id=${quote.id}"
                 class="block text-center mt-4 w-full px-4 py-2 rounded-md text-sm font-medium text-white"
-                style="background-color: ${COLORS.blue};"
+                style="background-color: ${COLORS.orange};" <!-- ** CORREÇÃO: Usando COLORS.orange ** -->
               >
                 Ver Detalhes
               </a>
@@ -85,7 +85,7 @@
     // --- Inicialização ---
     document.addEventListener('DOMContentLoaded', () => {
       if (checkAuth()) {
-        renderSidebarNav('cotacao');
+        renderSidebarNav('cotacoes'); // <-- ** CORREÇÃO: 'cotacoes' (plural) **
         renderFooter();
         renderLoading(mainContent, 'Carregando cotações...');
         setTimeout(renderCotacaoListScreen, 100); 

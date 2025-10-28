@@ -46,6 +46,34 @@ export const getAppData = () => {
   const data = localStorage.getItem('appData');
   return data ? JSON.parse(data) : null;
 };
+
+// ** NOVO: Helpers para buscar nomes **
+
+/**
+ * Busca o nome de um produto pelo ID.
+ * @param {string} productId - O ID do produto.
+ * @returns {string} O nome do produto or 'Produto não encontrado'.
+ */
+export const getProductName = (productId) => {
+  const appData = getAppData();
+  if (!appData || !appData.products) return '...';
+  const product = appData.products.find(p => p.id === productId);
+  return product ? product.property_nome : 'Produto não encontrado';
+};
+
+/**
+ * Busca o nome de um fornecedor pelo ID.
+ * @param {string} supplierId - O ID do fornecedor.
+ * @returns {string} O nome do fornecedor or 'Fornecedor não encontrado'.
+ */
+export const getSupplierName = (supplierId) => {
+  const appData = getAppData();
+  if (!appData || !appData.suppliers) return '...';
+  const supplier = appData.suppliers.find(s => s.id === supplierId);
+  return supplier ? supplier.property_nome : 'Fornecedor não encontrado';
+};
+
+
 // --- AUTENTICAÇÃO ---
 
 /**
@@ -303,7 +331,8 @@ export const showConfirmationModal = (title, htmlMessage, onConfirm) => {
  * @param {string} isoString - A data em formato ISO.
  * @returns {string} A data formatada.
  */
-export const formatISODate = (isoString) => {
+// ** CORREÇÃO: Renomeado de formatISODate para formatDate **
+export const formatDate = (isoString) => {
   if (!isoString) return 'N/D';
   try {
     const date = new Date(isoString);
