@@ -42,7 +42,7 @@
     const mainContent = document.getElementById('main-content');
     let myStockChart = null; // Guarda a instância do gráfico
 
-    // --- Funções do Gráfico (sem alteração) ---
+    // Função para inicializar o gráfico de linha
     const initStockChart = (productId, appData) => {
       const { products, stockHistory } = appData;
       const product = products.find(p => p.id === productId);
@@ -51,18 +51,22 @@
       const ctx = document.getElementById('stock-line-chart');
       if (!ctx) return; 
 
+      // 1. Pega o histórico e ordena do mais antigo para o mais novo
       const history = stockHistory
         .filter(item => item.property_produto && item.property_produto.includes(productId))
         .sort((a, b) => new Date(a.property_criado_em) - new Date(b.property_criado_em));
 
+      // 2. Calcula o estoque inicial
       const estoqueAtual = product.property_estoque_atual;
       const totalEntradas = history.reduce((acc, item) => 
         item.property_movimento === 'Entrada' ? acc + item.property_quantidade : acc, 0);
       const totalSaidas = history.reduce((acc, item) => 
         item.property_movimento === 'Saída' ? acc + item.property_quantidade : acc, 0);
       
+      // Estoque Inicial = Estoque Atual - (Total de Entradas) + (Total de Saídas)
       const estoqueInicial = estoqueAtual - totalEntradas + totalSaidas;
 
+      // 3. Prepara os dados para o gráfico
       const labels = ['Estoque Inicial'];
       const data = [estoqueInicial];
       let currentStock = estoqueInicial;
@@ -77,10 +81,12 @@
         data.push(currentStock);
       });
       
+      // 4. Destrói gráfico anterior, se houver
       if (myStockChart) {
         myStockChart.destroy();
       }
 
+      // 5. Cria o gráfico
       myStockChart = new Chart(ctx.getContext('2d'), {
         type: 'line',
         data: {
@@ -134,7 +140,7 @@
       `;
     };
 
-    // --- Renderização Principal da Tela (MODIFICADA) ---
+    // Renderiza a tela de detalhe
     const renderEstoqueDetailScreen = (productId) => {
       const appData = getAppData();
       if (!appData) {
@@ -151,6 +157,28 @@
         return;
       }
       
+      const history = stockHistory
+        .filter(item => item.property_produto && item.property_produto.includes(productId))
+        .sort((a, b) => new Date(b.property_criado_em) - new Date(a.property_criado_em)); // Ordena do mais novo para o mais antigo
+
+      // ** MODIFICADO: Adiciona o botão "Abrir no Notion" **
+      const buttonsHtml = `
+        <div class="flex flex-wrap gap-2">
+          <a href="estoque.html"
+            class="px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
+          >
+            &larr; Voltar para Estoque
+          </a>
+          <a href="${product.url}" target="_blank" rel="noopener noreferrer"
+            class="px-4 py-2 rounded-md text-sm font-medium text-white hover:opacity-90"
+            style="background-color: ${COLORS.black};"
+            title="Abrir este produto no Notion em uma nova aba"
+          >
+            Abrir no Notion
+          </a>
+        </div>
+      `;
+
       // Prepara os dados novos
       const descricao = product.property_descri_o_do_produto || 'Nenhuma descrição fornecida.';
       const situacao = product.property_situa_o_do_produto || 'Indefinida';
@@ -160,24 +188,12 @@
         : 'Sem categoria';
       const unidade = product.property_unidade_de_medida || 'N/A';
       
-      const history = stockHistory
-        .filter(item => item.property_produto && item.property_produto.includes(productId))
-        .sort((a, b) => new Date(b.property_criado_em) - new Date(a.property_criado_em));
-
-      const buttonsHtml = `
-        <a href="estoque.html"
-          class="px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
-        >
-          &larr; Voltar para Estoque
-        </a>
-      `;
-
       mainContent.innerHTML = `
         ${renderScreenHeader(`Histórico: ${product.property_nome}`, `Estoque Atual: ${product.property_estoque_atual} | Mínimo: ${product.property_estoque_m_nimo}`, buttonsHtml)}
 
         <div class="space-y-6">
-        
-          <!-- ** NOVO CARD: Detalhes do Produto ** -->
+          
+          <!-- CARD: Detalhes do Produto -->
           <div class="p-4 bg-white rounded-lg shadow">
             <h3 class="text-lg font-semibold mb-4 font-heading" style="color: ${COLORS.black};">Detalhes do Produto</h3>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -203,14 +219,14 @@
               </div>
             </div>
           </div>
-
-          <!-- Card do Gráfico (sem alteração) -->
+          
+          <!-- Card do Gráfico (existente) -->
           <div class="p-4 bg-white rounded-lg shadow">
             <h3 class="text-lg font-semibold mb-4 font-heading" style="color: ${COLORS.black};">Evolução do Estoque</h3>
             <canvas id="stock-line-chart"></canvas>
           </div>
 
-          <!-- Card da Tabela (sem alteração) -->
+          <!-- Tabela (existente) -->
           <div class="overflow-x-auto bg-white rounded-lg shadow">
             <h3 class="text-lg font-semibold p-4 font-heading" style="color: ${COLORS.black};">Histórico de Movimentação</h3>
             <table class="min-w-full divide-y divide-gray-200">
@@ -246,7 +262,7 @@
         </div>
       `;
       
-      // Inicializa o gráfico (depois que o canvas foi renderizado)
+      // Inicializa o gráfico
       initStockChart(productId, appData);
     };
 
@@ -261,6 +277,7 @@
         const productId = params.get('id');
 
         if (productId) {
+          // Usamos um pequeno timeout para garantir que os dados do localStorage estejam prontos (embora devam estar)
           setTimeout(() => renderEstoqueDetailScreen(productId), 100);
         } else {
           showError('ID do produto não fornecido.');

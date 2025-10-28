@@ -10,17 +10,22 @@
     body { font-family: 'Inter', sans-serif; background-color: #FFF9F3; }
     .font-heading { font-family: 'Bricolage Grotesque', sans-serif; }
     #main-content { flex: 1 1 auto; }
+    /* ** NOVO: Adicionando a classe de link que usamos no estoque.html ** */
+    .product-detail-link { cursor: pointer; text-decoration: underline; color: #1E40AF; }
+    .product-detail-link:hover { color: #1D4ED8; }
   </style>
 </head>
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
     <div id="sidebar-container"></div>
+    
     <div class="flex-1 flex flex-col">
       <main id="main-content" class="flex-1 p-4 md:p-8 bg-gray-50"></main>
       <div id="footer-container"></div>
     </div>
   </div>
+  
   <div id="error-container" class="fixed top-4 right-4 z-50"></div>
 
   <script type="module">
@@ -36,65 +41,192 @@
       COLORS
     } from './app.js';
 
-    const mainContent = document.getElementById('main-content');
-    let loading = false;
+    // Estado local da página
+    const pageState = {
+      loading: false,
+      filters: {
+        name: '',
+        status: 'Todos',
+        category: 'Todas',
+      },
+      availableCategories: []
+    };
 
-    const renderProdutosScreen = () => {
+    const mainContent = document.getElementById('main-content');
+    
+    // Helper para extrair categorias únicas
+    const getUniqueCategories = (products) => {
+      const allCategories = products.flatMap(p => p.property_categoria || []);
+      return [...new Set(allCategories)];
+    };
+
+    // Renderiza o card de filtros
+    const renderFilterCard = () => {
+      const container = document.getElementById('filter-container');
+      if (!container) return;
+
+      const { name, status, category } = pageState.filters;
+      
+      const categoryOptions = pageState.availableCategories.map(cat => 
+        `<option value="${cat}" ${category === cat ? 'selected' : ''}>${cat}</option>`
+      ).join('');
+
+      container.innerHTML = `
+        <div class="mb-4 p-4 bg-white rounded-lg shadow">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <!-- Filtro de Nome -->
+            <div class="md:col-span-1">
+              <label for="filter-name" class="block text-sm font-medium text-gray-700">Filtrar por nome</label>
+              <input type="text" id="filter-name" value="${name}"
+                class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                style="--tw-ring-color: ${COLORS.orange};"
+                placeholder="Digite o nome do produto..."
+              />
+            </div>
+            
+            <!-- Filtro de Situação -->
+            <div>
+              <label for="filter-status" class="block text-sm font-medium text-gray-700">Situação</label>
+              <select id="filter-status"
+                class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                style="--tw-ring-color: ${COLORS.orange};">
+                <option value="Todos" ${status === 'Todos' ? 'selected' : ''}>Todos</option>
+                <option value="Ativo" ${status === 'Ativo' ? 'selected' : ''}>Ativo</option>
+                <option value="Inativo" ${status === 'Inativo' ? 'selected' : ''}>Inativo</option>
+              </select>
+            </div>
+            
+            <!-- Filtro de Categoria -->
+            <div>
+              <label for="filter-category" class="block text-sm font-medium text-gray-700">Categoria</label>
+              <select id="filter-category"
+                class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                style="--tw-ring-color: ${COLORS.orange};">
+                <option value="Todas" ${category === 'Todas' ? 'selected' : ''}>Todas</option>
+                ${categoryOptions}
+              </select>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      // Adiciona eventos
+      document.getElementById('filter-name')?.addEventListener('input', handleFilterChange);
+      document.getElementById('filter-status')?.addEventListener('change', handleFilterChange);
+      document.getElementById('filter-category')?.addEventListener('change', handleFilterChange);
+    };
+
+    // Renderiza a tabela de produtos
+    const renderProdutosTable = () => {
+      const container = document.getElementById('table-container');
+      if (!container) return;
+      
       const appData = getAppData();
-      if (!appData) {
-        showError("Falha ao carregar dados.");
-        return;
-      }
+      if (!appData) return;
       
       const { products } = appData;
+      const { name, status, category } = pageState.filters;
 
-      mainContent.innerHTML = `
-        ${renderScreenHeader('Produtos', 'Cadastro de todos os produtos.')}
-        
+      // Lógica de filtragem
+      const filteredProducts = products.filter(p => {
+        if (name && !p.property_nome.toLowerCase().includes(name.toLowerCase())) return false;
+        if (status !== 'Todos' && p.property_situa_o_do_produto !== status) return false;
+        if (category !== 'Todas' && (!p.property_categoria || !p.property_categoria.includes(category))) return false;
+        return true;
+      });
+
+      container.innerHTML = `
         <div class="overflow-x-auto bg-white rounded-lg shadow">
           <table class="min-w-full divide-y divide-gray-200">
             <thead style="background-color: ${COLORS.azure};">
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Produto</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Estoque Atual</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Unidade</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Situação</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Un. Medida</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              ${products.map(product => `
+              ${filteredProducts.length > 0 ? filteredProducts.map(product => {
+                const situacao = product.property_situa_o_do_produto || 'Indefinida';
+                const unidade = product.property_unidade_de_medida || 'N/A';
+                
+                return `
                   <tr key="${product.id}">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${product.property_nome}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${product.property_estoque_atual}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${product.property_unidade_de_medida || 'N/A'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <!-- ** MODIFICADO: Nome do produto agora é um link ** -->
                       <a 
                         href="estoque_detalhe.html?id=${product.id}"
-                        class="inline-block px-3 py-1 rounded-md text-xs font-medium text-white"
-                        style="background-color: ${COLORS.blue};"
+                        class="product-detail-link font-medium"
+                        title="Ver histórico e detalhes do produto"
                       >
-                        Histórico
+                        ${product.property_nome}
                       </a>
+                      <p class="text-xs text-gray-500">${product.property_categoria ? product.property_categoria.join(', ') : ''}</p>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${situacao}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${unidade}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
                       <button data-product-id="${product.id}" class="cotar-btn px-3 py-1 rounded-md text-xs font-medium text-white disabled:opacity-50"
-                        style="background-color: ${COLORS.orange};" ${loading ? 'disabled' : ''}>
+                        style="background-color: ${COLORS.orange};" ${pageState.loading ? 'disabled' : ''}>
                         Cotar
                       </button>
                     </td>
                   </tr>
-                `).join('')}
+                `;
+              }).join('') : `
+                <tr>
+                  <td colspan="4" class="px-6 py-4 text-center text-gray-500">Nenhum produto encontrado com esses filtros.</td>
+                </tr>
+              `}
             </tbody>
           </table>
         </div>
       `;
-      
-      // Adiciona eventos
+
+      // Adiciona eventos da tabela
       document.querySelectorAll('.cotar-btn').forEach(btn => btn.addEventListener('click', handleCreateQuote));
     };
 
-    // Handler para criar cotação (igual ao da tela de estoque)
+    // Renderização principal da tela
+    const renderProdutosScreen = () => {
+      const appData = getAppData();
+      if (!appData) {
+        showError("Falha ao carregar dados. Tentando novamente...");
+        checkAuth(); 
+        return;
+      }
+      
+      if (pageState.availableCategories.length === 0) {
+        pageState.availableCategories = getUniqueCategories(appData.products);
+      }
+      
+      mainContent.innerHTML = `
+        ${renderScreenHeader('Produtos', 'Consulte todos os produtos cadastrados.')}
+        <div id="filter-container"></div>
+        <div id="table-container"></div>
+      `;
+      
+      renderFilterCard();
+      renderProdutosTable();
+    };
+
+    // --- Handlers ---
+    
+    // Handler para filtros
+    const handleFilterChange = (e) => {
+      const { id, value } = e.target;
+      if (id === 'filter-name') pageState.filters.name = value;
+      if (id === 'filter-status') pageState.filters.status = value;
+      if (id === 'filter-category') pageState.filters.category = value;
+      
+      renderProdutosTable(); // Re-renderiza APENAS a tabela
+    };
+    
+    // Criar Cotação (lógica idêntica ao estoque.html)
     const handleCreateQuote = (e) => {
-      loading = true;
-      renderProdutosScreen(); // Re-renderiza para desabilitar botões
+      pageState.loading = true;
+      renderProdutosTable(); // Re-renderiza a tabela para desabilitar botões
       
       const productId = e.currentTarget.dataset.productId;
       const appData = getAppData();
@@ -103,8 +235,8 @@
       const product = products.find(p => p.id === productId);
       if (!product) {
         showError('Produto não encontrado.');
-        loading = false;
-        renderProdutosScreen();
+        pageState.loading = false;
+        renderProdutosTable();
         return;
       }
 
@@ -116,8 +248,8 @@
 
       if (uniqueSupplierIds.length === 0) {
         showError('Produto sem fornecedores cadastrados.');
-        loading = false;
-        renderProdutosScreen();
+        pageState.loading = false;
+        renderProdutosTable();
         return;
       }
       
@@ -143,7 +275,7 @@
       appData.quotes.push(newQuote);
       appData.quoteItems.push(...newItems);
       saveAppData(appData);
-      
+
       window.location.href = `cotacao_detalhe.html?id=${newQuoteId}`;
     };
 
@@ -156,6 +288,7 @@
         setTimeout(renderProdutosScreen, 100); 
       }
     });
+
   </script>
 </body>
 </html>
