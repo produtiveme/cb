@@ -33,7 +33,7 @@
       renderLoading,
       showError,
       getAppData,
-      getProductName, // Helper para buscar nome do produto
+      getProductName,
       formatDate,
       COLORS
     } from './app.js';
@@ -42,25 +42,48 @@
 
     // Renderiza um selo (badge) para o status
     const renderStatusBadge = (status) => {
-      let bgColor, textColor;
+      let bgColor, textColor, ringColor;
       switch (status) {
         case 'Rascunho':
-          bgColor = 'bg-gray-100';
-          textColor = 'text-gray-800';
+          bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
           break;
         case 'Aguardando':
-          bgColor = 'bg-yellow-100';
-          textColor = 'text-yellow-800';
+          bgColor = 'bg-yellow-100'; textColor = 'text-yellow-800'; ringColor = 'ring-yellow-200';
           break;
         case 'Finalizada':
-          bgColor = 'bg-green-100';
-          textColor = 'text-green-800';
+          bgColor = 'bg-green-100'; textColor = 'text-green-800'; ringColor = 'ring-green-200';
           break;
         default:
-          bgColor = 'bg-gray-100';
-          textColor = 'text-gray-800';
+          bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
       }
-      return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor}">${status}</span>`;
+      return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor} ring-1 ring-inset ${ringColor}">${status}</span>`;
+    };
+
+    // ** NOVO: Renderiza a barra de progresso do status **
+    const renderStatusProgressBar = (status) => {
+      let widthPercent, bgColor;
+      switch (status) {
+        case 'Rascunho':
+          widthPercent = '33%';
+          bgColor = 'bg-gray-400';
+          break;
+        case 'Aguardando':
+          widthPercent = '66%';
+          bgColor = 'bg-yellow-500';
+          break;
+        case 'Finalizada':
+          widthPercent = '100%';
+          bgColor = 'bg-green-500';
+          break;
+        default:
+          widthPercent = '10%';
+          bgColor = 'bg-gray-400';
+      }
+      return `
+        <div class="w-full bg-gray-200 rounded-full h-1.5 mt-3 mb-1">
+          <div class="${bgColor} h-1.5 rounded-full transition-all duration-500" style="width: ${widthPercent}"></div>
+        </div>
+      `;
     };
 
     // Renderiza a tela principal de lista de cotações
@@ -78,35 +101,46 @@
           ${appData.quotes.length === 0 ? `
             <p class="col-span-full text-center text-gray-500">Nenhuma cotação encontrada.</p>
           ` : 
-            appData.quotes.map(quote => {
+            appData.quotes.sort((a, b) => a.property_nome.localeCompare(b.property_nome)).map(quote => {
               const productName = getProductName(quote.property_produto[0]);
-              // ** MODIFICADO: Lê a quantidade e unidade **
               const quantity = quote.property_quantidade || 'N/D';
-              const unit = quote.property_unidade_de_medida[0] || '';
+              // Garante que a unidade é um array antes de aceder
+              const unit = Array.isArray(quote.property_unidade_de_medida) && quote.property_unidade_de_medida.length > 0
+                           ? quote.property_unidade_de_medida[0]
+                           : '';
 
+              // ** MODIFICADO: Layout do Card melhorado **
               return `
-                <div classa="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow">
-                  <h3 class="text-lg font-bold font-heading mb-2" style="color: ${COLORS.black};">
-                    ${quote.property_nome}
-                  </h3>
-                  <div class="mb-2">
-                    <span class="text-sm font-medium text-gray-600">Produto:</span>
-                    <span class="text-sm text-gray-900">${productName}</span>
+                <div class="bg-white rounded-lg shadow flex flex-col justify-between overflow-hidden hover:shadow-md transition-shadow">
+                  <!-- Área de Conteúdo -->
+                  <div class="p-4">
+                    <div class="flex justify-between items-start">
+                      <h3 class="text-lg font-bold font-heading mb-2" style="color: ${COLORS.black};">
+                        ${quote.property_nome}
+                      </h3>
+                      ${renderStatusBadge(quote.property_status)}
+                    </div>
+                    
+                    <!-- Detalhes -->
+                    <div class="space-y-1.5 mt-2 text-sm">
+                      <div class="flex">
+                        <span class="font-medium text-gray-600 w-20 flex-shrink-0">Produto:</span>
+                        <span class="text-gray-900 truncate" title="${productName}">${productName}</span>
+                      </div>
+                      <div class="flex">
+                        <span class="font-medium text-gray-600 w-20 flex-shrink-0">Qtd:</span>
+                        <span class="text-gray-900 font-bold">${quantity} ${unit}</span>
+                      </div>
+                    </div>
+
+                    <!-- Barra de Progresso -->
+                    ${renderStatusProgressBar(quote.property_status)}
                   </div>
                   
-                  <!-- ** NOVO: Bloco de Quantidade ** -->
-                  <div class="mb-2">
-                    <span class="text-sm font-medium text-gray-600">Quantidade:</span>
-                    <span class="text-sm font-bold text-gray-900">${quantity} ${unit}</span>
-                  </div>
-
-                  <div class="mb-4">
-                    <span class="text-sm font-medium text-gray-600">Status:</span>
-                    ${renderStatusBadge(quote.property_status)}
-                  </div>
+                  <!-- Botão no Rodapé -->
                   <a 
                     href="cotacao_detalhe.html?id=${quote.id}"
-                    class="w-full text-center px-4 py-2 rounded-md text-sm font-medium text-white inline-block"
+                    class="block w-full text-center px-4 py-2 text-sm font-medium text-white"
                     style="background-color: ${COLORS.orange};"
                   >
                     Ver Detalhes
@@ -122,7 +156,7 @@
     // --- Inicialização ---
     document.addEventListener('DOMContentLoaded', () => {
       if (checkAuth()) {
-        renderSidebarNav('cotacoes'); // Corrigido para 'cotacoes' (plural)
+        renderSidebarNav('cotacoes'); 
         renderFooter();
         renderLoading(mainContent, 'Carregando cotações...');
         setTimeout(renderCotacaoListScreen, 100); 
