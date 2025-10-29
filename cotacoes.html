@@ -1,167 +1,205 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cotações - Curral Burguer Gestão</title>
+  <title>Cotações - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Inter', sans-serif; background-color: #FFF9F3; }
-    .font-heading { font-family: 'Bricolage Grotesque', sans-serif; }
-    #main-content { flex: 1 1 auto; }
-  </style>
+  
+  <!-- Estilo Global Centralizado -->
+  <link rel="stylesheet" href="style.css">
+
 </head>
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
+    
+    <!-- Sidebar (será preenchida pelo app.js) -->
     <div id="sidebar-container"></div>
-    <div class="flex-1 flex flex-col">
-      <main id="main-content" class="flex-1 p-4 md:p-8 bg-gray-50"></main>
-      <div id="footer-container"></div>
-    </div>
-  </div>
-  <div id="error-container" class="fixed top-4 right-4 z-50"></div>
-  <div id="modal-container" class="hidden"></div>
 
+    <!-- Conteúdo Principal -->
+    <main class="flex-1 p-6 md:p-10">
+
+      <!-- Cabeçalho (será preenchido pelo app.js) -->
+      <header id="header-container"></header>
+
+      <!-- Container para Alertas -->
+      <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
+      
+      <!-- Container do Modal (inicialmente oculto) -->
+      <div id="modal-container" class="hidden"></div>
+
+      <!-- Conteúdo da Página (será preenchido pelo JS) -->
+      <div id="quotes-list-container">
+        <!-- O Spinner de carregamento ou a lista de cotações serão injetados aqui -->
+      </div>
+      
+    </main>
+  </div>
+
+  <!-- Rodapé (será preenchido pelo app.js) -->
+  <div id="footer-container"></div>
+
+
+  <!-- Script da Página -->
   <script type="module">
-    import { 
-      checkAuth, 
-      renderSidebarNav, 
-      renderFooter, 
-      renderScreenHeader,
-      renderLoading,
-      showError,
+    import {
+      checkAuth,
       getAppData,
+      renderSidebarNav,
+      renderFooter,
+      renderLoading,
+      renderScreenHeader,
+      showError,
       getProductName,
-      formatDate,
       COLORS
     } from './app.js';
 
-    const mainContent = document.getElementById('main-content');
-
-    // Renderiza um selo (badge) para o status
-    const renderStatusBadge = (status) => {
-      let bgColor, textColor, ringColor;
-      switch (status) {
-        case 'Rascunho':
-          bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
-          break;
-        case 'Aguardando':
-          bgColor = 'bg-yellow-100'; textColor = 'text-yellow-800'; ringColor = 'ring-yellow-200';
-          break;
-        case 'Finalizada':
-          bgColor = 'bg-green-100'; textColor = 'text-green-800'; ringColor = 'ring-green-200';
-          break;
-        default:
-          bgColor = 'bg-gray-100'; textColor = 'text-gray-800'; ringColor = 'ring-gray-200';
-      }
-      return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor} ring-1 ring-inset ${ringColor}">${status}</span>`;
+    // --- Estado da Página ---
+    const pageState = {
+      appData: null,
+      quotes: []
     };
 
-    // ** NOVO: Renderiza a barra de progresso do status **
-    const renderStatusProgressBar = (status) => {
-      let widthPercent, bgColor;
-      switch (status) {
-        case 'Rascunho':
-          widthPercent = '33%';
-          bgColor = 'bg-gray-400';
-          break;
-        case 'Aguardando':
-          widthPercent = '66%';
-          bgColor = 'bg-yellow-500';
-          break;
-        case 'Finalizada':
-          widthPercent = '100%';
-          bgColor = 'bg-green-500';
-          break;
-        default:
-          widthPercent = '10%';
-          bgColor = 'bg-gray-400';
-      }
-      return `
-        <div class="w-full bg-gray-200 rounded-full h-1.5 mt-3 mb-1">
-          <div class="${bgColor} h-1.5 rounded-full transition-all duration-500" style="width: ${widthPercent}"></div>
-        </div>
-      `;
-    };
+    // --- Funções Principais ---
 
-    // Renderiza a tela principal de lista de cotações
-    const renderCotacaoListScreen = () => {
-      const appData = getAppData();
-      if (!appData) {
-        showError("Falha ao carregar dados.");
+    /**
+     * Inicializa a página
+     */
+    function init() {
+      // 1. Verifica autenticação
+      if (!checkAuth()) return;
+
+      // 2. Carrega dados do localStorage
+      pageState.appData = getAppData();
+      if (!pageState.appData) {
+        showError("Falha ao carregar dados. Tente fazer login novamente.");
         return;
       }
+      
+      // 3. Pega as cotações
+      // Ordena da mais nova para a mais antiga (pelo nome COT-XXX)
+      pageState.quotes = [...pageState.appData.quotes].sort((a, b) => {
+         const numA = parseInt(a.property_nome.split('-')[1] || 0);
+         const numB = parseInt(b.property_nome.split('-')[1] || 0);
+         return numB - numA; // Ordem descendente
+      });
 
-      mainContent.innerHTML = `
-        ${renderScreenHeader('Cotações', 'Gerencie todas as suas cotações de produtos.')}
+      // 4. Renderiza componentes estáticos
+      renderSidebarNav('cotacoes'); // Marca 'Cotações' como ativo
+      renderFooter();
+      renderScreenHeader("Cotações", "Gerencie cotações existentes.");
+      
+      // 5. Renderiza a lista de cotações
+      renderCotacaoListScreen();
+    }
+    
+    /**
+     * Renderiza a lista de cotações
+     */
+    function renderCotacaoListScreen() {
+      const container = document.getElementById('quotes-list-container');
+      if (!container) return;
+      
+      renderLoading(container, "A carregar cotações...");
+      
+      const { quotes } = pageState;
+
+      // Simula um pequeno atraso para o spinner ser visível
+      setTimeout(() => {
+        if (quotes.length === 0) {
+          container.innerHTML = `
+            <div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">
+              Nenhuma cotação encontrada. Comece por criar uma na página de Estoque ou Produtos.
+            </div>
+          `;
+          return;
+        }
+
+        // Constrói os Cards
+        container.innerHTML = `
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            ${quotes.map(quote => renderQuoteCard(quote)).join('')}
+          </div>
+        `;
+      }, 100);
+    }
+    
+    /**
+     * Renderiza um card de cotação individual
+     */
+    function renderQuoteCard(quote) {
+      const productName = getProductName(quote.property_produto[0]);
+      const status = quote.property_status || 'Indefinido';
+      
+      let statusColor = 'bg-gray-200 text-gray-800'; // Padrão (Rascunho)
+      let progressBarWidth = '25%'; // Rascunho
+      
+      switch (status) {
+        case 'Aguardando':
+          statusColor = 'bg-yellow-100 text-yellow-800';
+          progressBarWidth = '50%';
+          break;
+        case 'Finalizada':
+          statusColor = 'bg-green-100 text-green-800';
+          progressBarWidth = '100%';
+          break;
+      }
+
+      const quantidade = quote.property_quantidade || 'N/A';
+      const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
+
+      return `
+        <div class="bg-white shadow-lg rounded-lg border border-gray-200 overflow-hidden flex flex-col transition-shadow duration-300 hover:shadow-xl">
+          <!-- Barra de Progresso do Status -->
+          <div class="w-full bg-gray-200 h-1.5">
+            <div 
+              class="h-1.5 rounded-r-full" 
+              style="width: ${progressBarWidth}; background-color: ${COLORS.orange};"
+            ></div>
+          </div>
         
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          ${appData.quotes.length === 0 ? `
-            <p class="col-span-full text-center text-gray-500">Nenhuma cotação encontrada.</p>
-          ` : 
-            appData.quotes.sort((a, b) => a.property_nome.localeCompare(b.property_nome)).map(quote => {
-              const productName = getProductName(quote.property_produto[0]);
-              const quantity = quote.property_quantidade || 'N/D';
-              // Garante que a unidade é um array antes de aceder
-              const unit = Array.isArray(quote.property_unidade_de_medida) && quote.property_unidade_de_medida.length > 0
-                           ? quote.property_unidade_de_medida[0]
-                           : '';
-
-              // ** MODIFICADO: Layout do Card melhorado **
-              return `
-                <div class="bg-white rounded-lg shadow flex flex-col justify-between overflow-hidden hover:shadow-md transition-shadow">
-                  <!-- Área de Conteúdo -->
-                  <div class="p-4">
-                    <div class="flex justify-between items-start">
-                      <h3 class="text-lg font-bold font-heading mb-2" style="color: ${COLORS.black};">
-                        ${quote.property_nome}
-                      </h3>
-                      ${renderStatusBadge(quote.property_status)}
-                    </div>
-                    
-                    <!-- Detalhes -->
-                    <div class="space-y-1.5 mt-2 text-sm">
-                      <div class="flex">
-                        <span class="font-medium text-gray-600 w-20 flex-shrink-0">Produto:</span>
-                        <span class="text-gray-900 truncate" title="${productName}">${productName}</span>
-                      </div>
-                      <div class="flex">
-                        <span class="font-medium text-gray-600 w-20 flex-shrink-0">Qtd:</span>
-                        <span class="text-gray-900 font-bold">${quantity} ${unit}</span>
-                      </div>
-                    </div>
-
-                    <!-- Barra de Progresso -->
-                    ${renderStatusProgressBar(quote.property_status)}
-                  </div>
-                  
-                  <!-- Botão no Rodapé -->
-                  <a 
-                    href="cotacao_detalhe.html?id=${quote.id}"
-                    class="block w-full text-center px-4 py-2 text-sm font-medium text-white"
-                    style="background-color: ${COLORS.orange};"
-                  >
-                    Ver Detalhes
-                  </a>
-                </div>
-              `
-            }).join('')
-          }
+          <div class="p-5 flex flex-col flex-1">
+            <!-- Cabeçalho do Card (Nome e Status) -->
+            <div class="flex justify-between items-center mb-3">
+              <h3 
+                class="text-xl font-bold font-heading" 
+                style="color: ${COLORS.black};"
+              >
+                ${quote.property_nome}
+              </h3>
+              <span class="px-3 py-1 text-xs font-semibold rounded-full ${statusColor}">
+                ${status}
+              </span>
+            </div>
+            
+            <!-- Detalhes (Produto e Quantidade) -->
+            <div classs="mb-4">
+              <p class="text-base text-gray-700 font-medium">${productName}</p>
+              <p class="text-sm text-gray-500">
+                Quantidade: <strong>${quantidade} ${unidade}</strong>
+              </p>
+            </div>
+            
+            <!-- Ação (Botão) -->
+            <div class="mt-auto pt-4">
+              <a 
+                href="cotacao_detalhe.html?id=${quote.id}"
+                class="block w-full text-center px-4 py-2 rounded-md text-white font-medium transition-colors"
+                style="background-color: ${COLORS.blue};"
+              >
+                Ver Detalhes
+              </a>
+            </div>
+          </div>
         </div>
       `;
-    };
+    }
 
     // --- Inicialização ---
-    document.addEventListener('DOMContentLoaded', () => {
-      if (checkAuth()) {
-        renderSidebarNav('cotacoes'); 
-        renderFooter();
-        renderLoading(mainContent, 'Carregando cotações...');
-        setTimeout(renderCotacaoListScreen, 100); 
-      }
-    });
+    init(); // Inicia a página
+
   </script>
+
 </body>
 </html>

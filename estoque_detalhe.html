@@ -1,218 +1,359 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Detalhe do Estoque - Curral Burguer Gestão</title>
+  <title>Detalhe do Estoque - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Biblioteca de Gráficos (Específica desta página) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@10..48,700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    body { font-family: 'Inter', sans-serif; background-color: #FFF9F3; }
-    .font-heading { font-family: 'Bricolage Grotesque', sans-serif; }
-    #main-content { flex: 1 1 auto; }
-  </style>
+
+  <!-- Estilo Global Centralizado -->
+  <link rel="stylesheet" href="style.css">
+
 </head>
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
+    
+    <!-- Sidebar (será preenchida pelo app.js) -->
     <div id="sidebar-container"></div>
-    <div class="flex-1 flex flex-col">
-      <main id="main-content" class="flex-1 p-4 md:p-8 bg-gray-50"></main>
-      <div id="footer-container"></div>
-    </div>
-  </div>
-  <div id="error-container" class="fixed top-4 right-4 z-50"></div>
 
+    <!-- Conteúdo Principal -->
+    <main class="flex-1 p-6 md:p-10">
+
+      <!-- Cabeçalho (será preenchido pelo app.js) -->
+      <header id="header-container"></header>
+
+      <!-- Container para Alertas -->
+      <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
+      
+      <!-- Container do Modal (inicialmente oculto) -->
+      <div id="modal-container" class="hidden"></div>
+
+      <!-- Conteúdo da Página (será preenchido pelo JS) -->
+      <div id="detail-content-container">
+        <!-- O Spinner de carregamento ou os cards serão injetados aqui -->
+      </div>
+      
+    </main>
+  </div>
+
+  <!-- Rodapé (será preenchido pelo app.js) -->
+  <div id="footer-container"></div>
+
+
+  <!-- Script da Página -->
   <script type="module">
-    import { 
-      checkAuth, 
-      renderSidebarNav, 
-      renderFooter, 
-      renderScreenHeader,
-      renderLoading,
-      showError,
+    import {
+      checkAuth,
       getAppData,
+      renderSidebarNav,
+      renderFooter,
+      renderLoading,
+      renderScreenHeader,
+      showError,
+      getUrlParam,
+      getProductById,
       formatDate,
       COLORS
     } from './app.js';
 
-    const mainContent = document.getElementById('main-content');
-    let stockChart = null; // Guarda a instância do gráfico
-
-    // Renderiza um selo (badge) para o status do produto
-    const renderStatusBadge = (status) => {
-      const isActive = status === 'Ativo';
-      const bgColor = isActive ? 'bg-green-100' : 'bg-gray-100';
-      const textColor = isActive ? 'text-green-800' : 'text-gray-800';
-      return `<span class="px-2 py-0.5 text-xs font-medium rounded-full ${bgColor} ${textColor}">${status}</span>`;
+    // --- Estado da Página ---
+    const pageState = {
+      appData: null,
+      productId: null,
+      product: null,
+      productHistory: []
     };
+    
+    // Variável global para o gráfico, para que possamos destruí-lo
+    let stockChart = null;
 
-    // Renderiza a tela principal
-    const renderEstoqueDetailScreen = (productId) => {
-      const appData = getAppData();
-      if (!appData) {
-        showError("Falha ao carregar dados.");
+
+    // --- Funções Principais ---
+
+    /**
+     * Inicializa a página
+     */
+    function init() {
+      // 1. Verifica autenticação
+      if (!checkAuth()) return;
+
+      // 2. Carrega dados do localStorage
+      pageState.appData = getAppData();
+      if (!pageState.appData) {
+        showError("Falha ao carregar dados. Tente fazer login novamente.");
         return;
       }
-
-      const { products, stockHistory } = appData;
-      const product = products.find(p => p.id === productId);
-
-      if (!product) {
+      
+      // 3. Pega o ID do produto da URL
+      pageState.productId = getUrlParam('id');
+      if (!pageState.productId) {
+        showError("ID do produto não fornecido.");
+        renderPageError("Produto não encontrado.");
+        return;
+      }
+      
+      // 4. Encontra o produto
+      pageState.product = getProductById(pageState.productId);
+      if (!pageState.product) {
         showError("Produto não encontrado.");
-        window.location.href = 'estoque.html';
+        renderPageError(`Produto com ID ${pageState.productId} não foi encontrado.`);
         return;
       }
-
-      const history = stockHistory
-        .filter(item => item.property_produto.includes(productId))
+      
+      // 5. Filtra o histórico para este produto
+      pageState.productHistory = pageState.appData.stockHistory
+        .filter(item => item.property_produto && item.property_produto.includes(pageState.productId))
         .sort((a, b) => new Date(a.property_criado_em) - new Date(b.property_criado_em)); // Ordena do mais antigo ao mais novo
 
+      // 6. Renderiza componentes estáticos
+      renderSidebarNav('estoque'); // Mantém 'Estoque' como ativo
+      renderFooter();
+      
+      // 7. Renderiza a tela de detalhes
+      renderEstoqueDetailScreen();
+    }
+    
+    /**
+     * Renderiza o layout principal da tela de detalhes
+     */
+    function renderEstoqueDetailScreen() {
+      const { product } = pageState;
+      const container = document.getElementById('detail-content-container');
+      if (!container) return;
+      
       // Botões do Cabeçalho
-      const buttonsHtml = `
-        <div class="flex gap-2">
-          <a href="estoque.html"
-            class="px-4 py-2 rounded-md text-sm font-medium bg-gray-200 hover:bg-gray-300"
+      const headerButtons = `
+        <div class="flex items-center space-x-2">
+          <a 
+            href="estoque.html" 
+            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-medium hover:bg-gray-300 transition text-sm"
           >
-            &larr; Voltar para Estoque
+            &larr; Voltar
           </a>
-          <a href="${product.url}"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="px-4 py-2 rounded-md text-sm font-medium text-white flex items-center"
-            style="background-color: ${COLORS.orange};"
+          <a 
+            href="${product.url}" 
+            target="_blank" 
+            class="px-4 py-2 text-white rounded-md font-medium transition text-sm"
+            style="background-color: ${COLORS.blue};"
+            title="Abrir o registo original no Notion"
           >
-            <!-- Ícone Notion (simplificado) -->
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M16 17v-4a2 2 0 00-2-2h-4a2 2 0 00-2 2v4"></path></svg>
             Abrir no Notion
           </a>
         </div>
       `;
       
-      mainContent.innerHTML = `
-        ${renderScreenHeader(`Histórico: ${product.property_nome}`, `Estoque Atual: ${product.property_estoque_atual}`, buttonsHtml)}
-        
-        <!-- Card de Detalhes do Produto -->
-        <div class="bg-white p-4 rounded-lg shadow mb-6">
-          <h3 class="text-lg font-bold font-heading mb-3" style="color: ${COLORS.black};">Detalhes do Produto</h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
+      // Renderiza Cabeçalho
+      renderScreenHeader(
+        `Histórico: ${product.property_nome}`, 
+        `ID: ${product.id}`, 
+        headerButtons
+      );
+      
+      // Renderiza Conteúdo
+      container.innerHTML = `
+        <div class="space-y-6">
+          ${renderProductInfoCard()}
+          ${renderChartCard()}
+          ${renderHistoryTableCard()}
+        </div>
+      `;
+      
+      // Inicializa o gráfico APÓS o <canvas> existir no DOM
+      initStockChart();
+    }
+    
+    /**
+     * Renderiza o card de Informações do Produto
+     */
+    function renderProductInfoCard() {
+      const { product } = pageState;
+      
+      const status = product.property_situa_o_do_produto || 'Indefinido';
+      const statusBadge = status === 'Ativo'
+        ? `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">${status}</span>`
+        : `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">${status}</span>`;
+
+      return `
+        <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+          <h3 class="text-lg font-bold font-heading mb-4" style="color: ${COLORS.black};">Detalhes do Produto</h3>
+          
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <!-- Descrição -->
+            <div class="md:col-span-2">
               <label class="block text-sm font-medium text-gray-500">Descrição</label>
-              <p class="text-gray-900 font-medium">${product.property_descri_o_do_produto || 'N/D'}</p>
+              <p class="mt-1 text-base text-gray-900">${product.property_descri_o_do_produto || 'N/A'}</p>
             </div>
+            
+            <!-- Situação -->
             <div>
               <label class="block text-sm font-medium text-gray-500">Situação</label>
-              <p class="text-gray-900 font-medium">${renderStatusBadge(product.property_situa_o_do_produto || 'N/D')}</p>
+              <div class="mt-1">
+                ${statusBadge}
+              </div>
             </div>
+            
+            <!-- Categoria -->
             <div>
               <label class="block text-sm font-medium text-gray-500">Categoria</label>
-              <p class="text-gray-900 font-medium">${product.property_categoria[0] || 'N/D'}</p>
+              <p class="mt-1 text-base text-gray-900">${(product.property_categoria && product.property_categoria[0]) || 'N/A'}</p>
             </div>
+            
+            <!-- Unidade de Medida -->
             <div>
-              <label class="block text-sm font-medium text-gray-500">Un. de Medida</label>
-              <p class="text-gray-900 font-medium">${product.property_unidade_de_medida || 'N/D'}</p>
+              <label class="block text-sm font-medium text-gray-500">Unidade de Medida</label>
+              <p class="mt-1 text-base text-gray-900">${product.property_unidade_de_medida || 'N/A'}</p>
             </div>
           </div>
         </div>
-
-        <!-- Card do Gráfico -->
-        <div class="bg-white p-4 rounded-lg shadow mb-6">
-          <h3 class="text-lg font-bold font-heading mb-3" style="color: ${COLORS.black};">Evolução do Estoque</h3>
-          <canvas id="stockChartCanvas"></canvas>
+      `;
+    }
+    
+    /**
+     * Renderiza o card do Gráfico
+     */
+    function renderChartCard() {
+      return `
+        <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+          <h3 class="text-lg font-bold font-heading mb-4" style="color: ${COLORS.black};">Evolução do Estoque</h3>
+          <div class="h-64 md:h-80">
+            <canvas id="stockChartCanvas"></canvas>
+          </div>
         </div>
-
-        <!-- Card da Tabela de Histórico -->
-        <div class="bg-white rounded-lg shadow overflow-hidden">
-          <h3 class="text-lg font-bold font-heading p-4" style="color: ${COLORS.black};">Histórico de Movimentação</h3>
+      `;
+    }
+    
+    /**
+     * Renderiza o card da Tabela de Histórico
+     */
+    function renderHistoryTableCard() {
+      const { productHistory } = pageState;
+      
+      if (productHistory.length === 0) {
+        return `
+          <div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">
+            Nenhuma movimentação de estoque encontrada para este produto.
+          </div>
+        `;
+      }
+      
+      const tableRows = productHistory.map(item => {
+        const isEntrada = item.property_movimento === 'Entrada';
+        const colorClass = isEntrada ? 'text-green-600' : 'text-red-600';
+        const sign = isEntrada ? '+' : '-';
+        
+        return `
+          <tr>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${formatDate(item.property_criado_em)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${colorClass}">
+              ${item.property_movimento}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${colorClass}">
+              ${sign}${item.property_quantidade}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              ${item.property_origem || 'N/A'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+      
+      return `
+        <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-hidden">
+          <h3 class="text-lg font-bold font-heading p-6" style="color: ${COLORS.black};">Histórico de Movimentação</h3>
           <table class="min-w-full divide-y divide-gray-200">
-            <thead style="background-color: ${COLORS.azure};">
+            <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Data</th>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Movimento</th>
-                <th class="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Quantidade</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Movimento</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantidade</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origem</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              ${history.length === 0 ? `
-                <tr><td colspan="3" class="px-6 py-4 text-center text-gray-500">Nenhuma movimentação encontrada.</td></tr>
-              ` : 
-                history.map(item => `
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${formatDate(item.property_criado_em)}</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${item.property_movimento === 'Entrada' ? 'text-green-600' : 'text-red-600'}">
-                    ${item.property_movimento}
-                  </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${item.property_quantidade}</td>
-                </tr>
-              `).join('')}
+              ${tableRows}
             </tbody>
           </table>
         </div>
       `;
-
-      // Inicializa o gráfico
-      initStockChart(product, history);
-    };
+    }
     
-    // Inicializa o gráfico de estoque
-    const initStockChart = (product, history) => {
+    /**
+     * Renderiza uma mensagem de erro na página
+     */
+    function renderPageError(message) {
+      renderScreenHeader("Erro", "", ""); // Limpa cabeçalho
+      const container = document.getElementById('detail-content-container');
+      if (container) {
+        container.innerHTML = `
+          <div class="bg-white p-6 rounded-lg shadow border border-red-200 text-center">
+            <h3 class="text-lg font-bold text-red-600">Ocorreu um Erro</h3>
+            <p class="mt-2 text-gray-600">${message}</p>
+            <a 
+              href="estoque.html" 
+              class="mt-6 inline-block px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-medium hover:bg-gray-300 transition text-sm"
+            >
+              &larr; Voltar para Estoque
+            </a>
+          </div>
+        `;
+      }
+    }
+    
+    /**
+     * Calcula o histórico de estoque e inicializa o gráfico
+     */
+    function initStockChart() {
       const ctx = document.getElementById('stockChartCanvas');
       if (!ctx) return;
-
-      // Destrói gráfico antigo se existir
+      
+      const { product, productHistory } = pageState;
+      
+      // 1. Destruir gráfico anterior (se existir)
       if (stockChart) {
         stockChart.destroy();
       }
 
-      // Calcula o estado do estoque ao longo do tempo
+      // 2. Calcular o estoque flutuante
       const labels = [];
-      const dataPoints = [];
+      const data = [];
       
-      // 1. Calcular o estoque inicial (antes do primeiro registro)
-      let currentStock = product.property_estoque_atual;
-      // Subtrai entradas e soma saídas para encontrar o ponto de partida
-      for (let i = history.length - 1; i >= 0; i--) {
-        const item = history[i];
-        if (item.property_movimento === 'Entrada') {
-          currentStock -= item.property_quantidade;
-        } else {
-          currentStock += item.property_quantidade;
-        }
-      }
-
-      // 2. Adiciona o ponto de partida (antes da primeira movimentação)
-      if (history.length > 0) {
-        const firstDate = new Date(history[0].property_criado_em);
-        firstDate.setDate(firstDate.getDate() - 1); // Um dia antes
-        labels.push(formatDate(firstDate.toISOString()));
-        dataPoints.push(currentStock);
-      } else {
-         // Se não há histórico, mostra apenas o estoque atual
-         labels.push(formatDate(new Date().toISOString()));
-         dataPoints.push(currentStock);
-         return; // Gráfico não é muito útil, mas os dados estão lá
-      }
-
-      // 3. Processa o histórico cronologicamente
-      history.forEach(item => {
-        if (item.property_movimento === 'Entrada') {
-          currentStock += item.property_quantidade;
-        } else {
-          currentStock -= item.property_quantidade;
-        }
+      let estoqueFlutuante = product.property_estoque_atual || 0;
+      
+      // 3. Trabalhar do mais recente para o mais antigo para recalcular o passado
+      const historyReversed = [...productHistory].reverse();
+      
+      // Adiciona o ponto "Hoje"
+      labels.push("Hoje");
+      data.push(estoqueFlutuante);
+      
+      for (const item of historyReversed) {
+        const isEntrada = item.property_movimento === 'Entrada';
+        const quantidade = item.property_quantidade || 0;
+        
+        // Se for entrada, subtraímos (pois estamos a ir para trás no tempo)
+        // Se for saída, somamos
+        estoqueFlutuante += isEntrada ? -quantidade : +quantidade;
+        
         labels.push(formatDate(item.property_criado_em));
-        dataPoints.push(currentStock);
-      });
+        data.push(estoqueFlutuante);
+      }
+      
+      // 4. Inverter os arrays para o gráfico (do mais antigo ao mais novo)
+      labels.reverse();
+      data.reverse();
 
-      // 4. Renderiza o gráfico
-      stockChart = new Chart(ctx, {
+      // 5. Criar o gráfico
+      stockChart = new Chart(ctx.getContext('2d'), {
         type: 'line',
         data: {
           labels: labels,
           datasets: [{
-            label: 'Quantidade em Estoque',
-            data: dataPoints,
+            label: 'Estoque',
+            data: data,
             borderColor: COLORS.orange,
             backgroundColor: 'rgba(255, 78, 0, 0.1)',
             fill: true,
@@ -221,33 +362,25 @@
         },
         options: {
           responsive: true,
+          maintainAspectRatio: false,
           scales: {
             y: {
-              beginAtZero: true
+              beginAtZero: false
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
             }
           }
         }
       });
-    };
+    }
 
-    // --- Inicialização da Página ---
-    document.addEventListener('DOMContentLoaded', () => {
-      if (checkAuth()) {
-        renderSidebarNav('estoque'); // <-- CORRIGIDO
-        renderFooter();
-        renderLoading(mainContent, 'Carregando detalhes do produto...');
-        
-        const params = new URLSearchParams(window.location.search);
-        const productId = params.get('id'); // <-- CORRIGIDO
+    // --- Inicialização ---
+    init(); // Inicia a página
 
-        if (productId) {
-          setTimeout(() => renderEstoqueDetailScreen(productId), 100); // <-- CORRIGIDO
-        } else {
-          showError('ID do produto não fornecido.');
-          window.location.href = 'estoque.html'; // <-- CORRIGIDO
-        }
-      }
-    });
   </script>
+
 </body>
 </html>
