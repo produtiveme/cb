@@ -31,7 +31,7 @@
 
       <!-- Conteúdo da Página (será preenchido pelo JS) -->
       <div id="quote-detail-container">
-        <!-- O Spinner de carregamento ou os detalhes da cotação serão injetados aqui -->
+        <!-- O Spinner de carregamento ou os detalhes serão injetados aqui -->
       </div>
       
     </main>
@@ -58,6 +58,8 @@
       getItemById,
       getProductName,
       getSupplierName,
+      getSupplierById, // <-- ADICIONADO
+      formatDate,
       COLORS
     } from './app.js';
 
@@ -102,11 +104,14 @@
       }
       
       // 5. Encontra os itens desta cotação
-      const itemIds = pageState.quote.property_item || [];
-      pageState.quoteItems = itemIds.map(id => getItemById('quoteItems', id)).filter(Boolean); // Filtra nulos/undefined
+      if (pageState.quote.property_item && Array.isArray(pageState.quote.property_item)) {
+        pageState.quoteItems = pageState.quote.property_item
+          .map(itemId => getItemById('quoteItems', itemId))
+          .filter(item => item !== undefined); // Remove itens não encontrados
+      }
 
       // 6. Renderiza componentes estáticos
-      renderSidebarNav('cotacoes'); // Marca 'Cotações' como ativo
+      renderSidebarNav('cotacoes'); // Mantém 'Cotações' como ativo
       renderFooter();
       
       // 7. Renderiza a tela de detalhes
@@ -120,82 +125,91 @@
       const { quote, quoteItems } = pageState;
       const container = document.getElementById('quote-detail-container');
       if (!container) return;
-
-      const productName = getProductName(quote.property_produto[0]);
+      
+      // --- Definições de Status ---
       const status = quote.property_status || 'Indefinido';
+      let statusColor = 'bg-gray-200 text-gray-800'; // Rascunho
+      
+      switch (status) {
+        case 'Aguardando':
+          statusColor = 'bg-yellow-100 text-yellow-800';
+          break;
+        case 'Finalizada':
+          statusColor = 'bg-green-100 text-green-800';
+          break;
+      }
+      
+      const productName = getProductName(quote.property_produto[0]);
       const quantidade = quote.property_quantidade || 'N/A';
       const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
       
-      // Subtítulo do cabeçalho
-      const subtitle = `Produto: ${productName} | Qtd: ${quantidade} ${unidade} | Status: ${status}`;
+      // --- Botões do Cabeçalho ---
+      const headerButtons = `
+        <div class="flex items-center space-x-2">
+          <a 
+            href="cotacoes.html" 
+            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-medium hover:bg-gray-300 transition text-sm"
+          >
+            &larr; Voltar
+          </a>
+          <a 
+            href="${quote.url}" 
+            target="_blank" 
+            class="px-4 py-2 text-white rounded-md font-medium transition text-sm"
+            style="background-color: ${COLORS.blue};"
+            title="Abrir o registo original no Notion"
+          >
+            Abrir no Notion
+          </a>
+        </div>
+      `;
+      
+      // --- Subtítulo do Cabeçalho ---
+      const subtitle = `
+        <span>Produto: <strong>${productName}</strong></span>
+        <span class="mx-2">|</span>
+        <span>Qtd: <strong>${quantidade} ${unidade}</strong></span>
+        <span class="mx-2">|</span>
+        <span>Status: <span class="px-2 py-0.5 text-xs font-semibold rounded-full ${statusColor}">${status}</span></span>
+      `;
       
       // Renderiza Cabeçalho
       renderScreenHeader(
-        `${quote.property_nome}`, 
-        subtitle
+        `Detalhes: ${quote.property_nome}`, 
+        subtitle, 
+        headerButtons
       );
       
-      // Renderiza Conteúdo
-      container.innerHTML = `
-        <div class="space-y-6">
-          ${renderActionsCard()}
-          ${renderItemsTable()}
-        </div>
-      `;
-      
-      // Adiciona listeners de eventos
-      addEventListeners();
-    }
-    
-    /**
-     * Renderiza o card de Ações (WhatsApp)
-     */
-    function renderActionsCard() {
-      // TODO: Adicionar botões de mudança de status (Aguardando, Finalizada)
-      return `
-        <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <h3 class="text-lg font-bold font-heading mb-4" style="color: ${COLORS.black};">Ações</h3>
-          <button id="whatsapp-btn" class="px-4 py-2 text-white rounded-md font-medium transition" style="background-color: #25D366;">
-            Gerar Texto WhatsApp
-          </button>
-        </div>
-      `;
-    }
-    
-    /**
-     * Renderiza a tabela de Itens da Cotação
-     */
-    function renderItemsTable() {
-      const { quoteItems } = pageState;
-      
+      // --- Renderiza Conteúdo (Tabela de Itens) ---
       if (quoteItems.length === 0) {
-        return `
-          <div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">
-            Nenhum item encontrado para esta cotação.
-          </div>
-        `;
+        container.innerHTML = `<div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">Nenhum item encontrado para esta cotação.</div>`;
+        return;
       }
       
-      const tableRows = quoteItems.map(item => renderItemRow(item)).join('');
-      
-      return `
+      container.innerHTML = `
         <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-hidden">
-          <h3 class="text-lg font-bold font-heading p-6" style="color: ${COLORS.black};">Itens da Cotação</h3>
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fornecedor</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço (R$)</th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Enviar Mensagem</th> <!-- NOVA COLUNA -->
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              ${tableRows}
+              ${quoteItems.map(item => renderItemRow(item)).join('')}
             </tbody>
           </table>
         </div>
+        
+        <!-- Card de Ações da Cotação (ex: Finalizar) -->
+        ${renderQuoteActionsCard(quote, quoteItems)}
       `;
+      
+      // Adiciona listeners aos botões da tabela
+      addEventListeners();
     }
     
     /**
@@ -206,73 +220,376 @@
       const status = item.property_status || 'Criado';
       const preco = item.property_preco || 0;
       
-      let statusColorClass = 'bg-gray-100 text-gray-800'; // Criado
-      switch (status) {
+      // Define o badge de status
+      let statusColor = 'bg-gray-100 text-gray-800'; // Criado
+      switch(status) {
+        case 'Enviado':
+          statusColor = 'bg-blue-100 text-blue-800';
+          break;
+        case 'Respondido':
+          statusColor = 'bg-yellow-100 text-yellow-800';
+          break;
         case 'Aprovado':
-          statusColorClass = 'bg-green-100 text-green-800';
+          statusColor = 'bg-green-100 text-green-800';
           break;
         case 'Rejeitado':
-          statusColorClass = 'bg-red-100 text-red-800';
+          statusColor = 'bg-red-100 text-red-800';
           break;
       }
       
-      // Define a cor do texto do preço
-      let precoColorClass = 'text-gray-900';
-      if (preco > 0) {
-        precoColorClass = 'text-blue-600 font-bold';
-      }
+      // Verifica se o item pode ser editado (Ainda não foi Aprovado/Rejeitado)
+      const canEdit = status !== 'Aprovado' && status !== 'Rejeitado';
 
-      // Verifica se o item pode ser editado (baseado no status da cotação)
-      const isRascunho = pageState.quote.property_status === 'Rascunho';
-      
       return `
         <tr>
           <!-- Fornecedor -->
           <td class="px-6 py-4 whitespace-nowrap">
             <div class="text-sm font-medium text-gray-900">${supplierName}</div>
-            <div class="text-sm text-gray-500">${item.property_nome}</div>
           </td>
           
           <!-- Status -->
           <td class="px-6 py-4 whitespace-nowrap">
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColorClass}">
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">
               ${status}
             </span>
           </td>
           
-          <!-- Preço -->
+          <!-- Preço (Input) -->
           <td class="px-6 py-4 whitespace-nowrap">
             <input 
               type="number" 
-              class="preco-input text-sm ${precoColorClass} w-24 p-1 border rounded-md ${isRascunho ? 'border-gray-300' : 'border-transparent bg-transparent'}"
-              value="${preco}"
+              class="price-input w-32 px-3 py-1 bg-white border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2"
+              style="--tw-ring-color: #FF4E00;"
+              value="${preco === 0 ? '' : preco}"
+              placeholder="0,00"
+              step="0.01"
+              min="0"
               data-item-id="${item.id}"
-              ${isRascunho ? '' : 'disabled'}
+              ${canEdit ? '' : 'disabled'}
             >
           </td>
           
-          <!-- Ações (Aprovar / Rejeitar) -->
-          <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-            ${isRascunho ? `
+          <!-- Ações (Aprovar/Rejeitar) -->
+          <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+            ${canEdit ? `
               <button 
-                class="aprovar-btn px-3 py-1 rounded-md text-white transition-colors"
+                class="approve-btn px-3 py-1 rounded-md text-white transition-colors"
                 style="background-color: ${COLORS.blue};"
                 data-item-id="${item.id}"
-                title="Aprovar este item (rejeita os outros)"
               >
                 Aprovar
               </button>
               <button 
-                class="rejeitar-btn px-3 py-1 rounded-md bg-gray-200 text-gray-700 transition-colors hover:bg-gray-300"
+                class="reject-btn px-3 py-1 bg-red-600 text-white rounded-md transition-colors"
                 data-item-id="${item.id}"
-                title="Rejeitar este item"
               >
                 Rejeitar
               </button>
-            ` : (status === 'Aprovado' ? '✔️ Aprovado' : '❌ Rejeitado')}
+            ` : (status === 'Aprovado' ? 
+                 '<span class="font-medium text-green-600">Aprovado</span>' : 
+                 '<span class="font-medium text-red-600">Rejeitado</span>')
+            }
+          </td>
+          
+          <!-- Enviar Mensagem (NOVOS BOTÕES) -->
+          <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+            <button
+              class="copy-text-btn p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+              data-item-id="${item.id}"
+              title="Copiar texto para este fornecedor"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            </button>
+            <button
+              class="open-wpp-btn p-2 rounded-full text-white transition-colors"
+              style="background-color: #25D366;"
+              data-item-id="${item.id}"
+              title="Abrir WhatsApp"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413 0 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.451-4.437-9.887-9.888-9.888-5.451 0-9.887 4.434-9.889 9.888.001 2.228.651 4.385 1.849 6.206l-.341 1.246 1.267-.328zM9.06 8.076C8.86 7.633 8.56 7.534 8.29 7.522c-.258-.011-.532-.011-.79-.011-.315 0-.715.116-1.091.554-.42.472-.647 1.05-.67 1.121-.023.07-.442 1.134.214 2.309.615 1.09 1.575 2.158 3.48 3.868 2.16 1.916 3.326 2.486 4.36 2.977 1.537.731 2.265.628 2.91.39 1.004-.37 2.06-.213 2.06-.213s.442-.04 1.002-.685c.56-.645.56-.998.51-.998s-.442-.212-1.002-.472c-.56-.26-1.002-.37-1.122-.37-.12 0-.26 0-.37.212-.12.213-.47.561-.68.731-.21.17-.42.213-.64.09-.26-.12-.47-.213-1.002-.472-1.346-.645-2.16-1.031-2.68-1.804-.37-.645-.04-1.002.12-1.122.12-.12.26-.26.37-.37.12-.12.21-.213.3-.37.12-.17.04-.42 0-.645-.04-.213-.56-1.346-.73-1.804z"/></svg>
+            </button>
           </td>
         </tr>
       `;
+    }
+    
+    /**
+     * Renderiza o card de Ações da Cotação (Botão Finalizar)
+     */
+    function renderQuoteActionsCard(quote, items) {
+      // Verifica se todos os itens foram Respondidos, Aprovados ou Rejeitados
+      const allItemsProcessed = items.every(
+        item => ['Respondido', 'Aprovado', 'Rejeitado'].includes(item.property_status)
+      );
+      
+      return `
+        <div class="bg-white p-6 rounded-lg shadow border border-gray-200 mt-6">
+          <h3 class="text-lg font-bold font-heading mb-4" style="color: ${COLORS.black};">Ações da Cotação</h3>
+          
+          <div class="flex flex-col md:flex-row gap-4">
+            <!-- Botão de WhatsApp global REMOVIDO -->
+            
+            <!-- Finalizar Cotação -->
+            <button 
+              id="finalize-quote-btn"
+              class="flex-1 px-4 py-3 rounded-md text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style="background-color: ${COLORS.orange};"
+              ${(quote.property_status !== 'Aguardando' || !allItemsProcessed) ? 'disabled' : ''}
+              title="${(quote.property_status !== 'Aguardando' || !allItemsProcessed) ? 'A cotação deve estar "Aguardando" e todos os itens devem estar "Respondido", "Aprovado" ou "Rejeitado" para finalizar.' : 'Finalizar Cotação'}"
+            >
+              Finalizar Cotação
+            </button>
+          </div>
+        </div>
+      `;
+    }
+    
+    /**
+     * Gera o texto para enviar ao WhatsApp (para um item/fornecedor específico)
+     */
+    function getWhatsappText(quote, item) {
+      const productName = getProductName(quote.property_produto[0]);
+      const quantidade = quote.property_quantidade || 'N/A';
+      const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
+      const supplierName = getSupplierName(item.property_fornecedor[0]);
+
+      // Mensagem personalizada
+      let text = `Olá, ${supplierName}!\n\n`;
+      text += `Gostaria de cotar o seguinte item para o Curral Burguer:\n\n`;
+      text += `*Produto:* ${productName}\n`;
+      text += `*Quantidade:* ${quantidade} ${unidade}\n\n`;
+      text += `Aguardo seu retorno com o valor. Obrigado!\n\n`;
+      text += `(Referência: ${quote.property_nome} / Item: ${item.property_nome})`;
+      
+      return text.trim().replace(/^\s+/gm, ''); // Limpa indentação
+    }
+    
+    /**
+     * Adiciona listeners de eventos aos inputs e botões
+     */
+    function addEventListeners() {
+      // --- Listeners dos Itens ---
+      
+      document.querySelectorAll('.price-input').forEach(input => {
+        input.addEventListener('change', handlePriceChange);
+      });
+      
+      document.querySelectorAll('.approve-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleItemStatusUpdate(btn.dataset.itemId, 'Aprovado'));
+      });
+      
+      document.querySelectorAll('.reject-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleItemStatusUpdate(btn.dataset.itemId, 'Rejeitado'));
+      });
+      
+      // --- NOVOS Listeners de Mensagem ---
+      document.querySelectorAll('.copy-text-btn').forEach(btn => {
+        btn.addEventListener('click', handleCopyText);
+      });
+      
+      document.querySelectorAll('.open-wpp-btn').forEach(btn => {
+        btn.addEventListener('click', handleOpenWhatsApp);
+      });
+      
+      // --- Listeners da Cotação ---
+      
+      const finalizeBtn = document.getElementById('finalize-quote-btn');
+      if (finalizeBtn) {
+        finalizeBtn.addEventListener('click', handleFinalizeQuote);
+      }
+    }
+    
+    /**
+     * Lida com a mudança de preço em um item
+     */
+    function handlePriceChange(event) {
+      const itemId = event.target.dataset.itemId;
+      const newPrice = parseFloat(event.target.value) || 0;
+      
+      // 1. Atualizar no appData (local)
+      const appData = pageState.appData;
+      const itemIndex = appData.quoteItems.findIndex(i => i.id === itemId);
+      
+      if (itemIndex === -1) {
+        showError("Erro ao salvar: Item não encontrado localmente.");
+        return;
+      }
+      
+      appData.quoteItems[itemIndex].property_preco = newPrice;
+      
+      // Se o status for "Criado" ou "Enviado", muda para "Respondido"
+      if (['Criado', 'Enviado'].includes(appData.quoteItems[itemIndex].property_status)) {
+        appData.quoteItems[itemIndex].property_status = 'Respondido';
+      }
+      
+      // 2. Salvar no localStorage
+      saveAppData(appData);
+      
+      // 3. Feedback e Re-renderização
+      showFeedback("Preço salvo com sucesso!", "success");
+      
+      // 4. (TODO - Futuro) Enviar para o N8N (Update Item)
+      // postApi(N8N_URLS.updateQuoteItem, appData.quoteItems[itemIndex]);
+      
+      // 5. Re-renderizar a tela para atualizar status
+      init(); 
+    }
+    
+    /**
+     * Lida com Aprovar/Rejeitar um item
+     */
+    function handleItemStatusUpdate(itemId, newStatus) {
+      const { appData, quoteItems } = pageState;
+      
+      // 1. Encontrar o item e o índice
+      const itemIndex = appData.quoteItems.findIndex(i => i.id === itemId);
+      if (itemIndex === -1) {
+        showError("Erro: Item não encontrado.");
+        return;
+      }
+      
+      // 2. Atualizar o item
+      appData.quoteItems[itemIndex].property_status = newStatus;
+
+      // 3. RN-001-2: Se APROVOU este, REJEITA os outros
+      if (newStatus === 'Aprovado') {
+        quoteItems.forEach(item => {
+          // Não mexe no item que acabamos de aprovar
+          if (item.id === itemId) return; 
+          
+          // Encontra o índice do "outro" item nos dados globais
+          const otherItemIndex = appData.quoteItems.findIndex(i => i.id === item.id);
+          if (otherItemIndex !== -1) {
+            // Só rejeita se não estiver já Aprovado/Rejeitado
+            if (['Criado', 'Enviado', 'Respondido'].includes(appData.quoteItems[otherItemIndex].property_status)) {
+              appData.quoteItems[otherItemIndex].property_status = 'Rejeitado';
+            }
+          }
+        });
+      }
+      
+      // 4. Salvar no localStorage
+      saveAppData(appData);
+      
+      // 5. (TODO - Futuro) Enviar para o N8N (Update Item)
+      
+      // 6. Re-renderizar
+      init();
+    }
+    
+    /**
+     * Lida com a finalização da cotação
+     */
+    function handleFinalizeQuote() {
+      const { appData, quoteId } = pageState;
+      
+      // 1. Encontrar a cotação
+      const quoteIndex = appData.quotes.findIndex(q => q.id === quoteId);
+      if (quoteIndex === -1) {
+        showError("Erro: Cotação não encontrada.");
+        return;
+      }
+      
+      // 2. Mudar status
+      appData.quotes[quoteIndex].property_status = 'Finalizada';
+      
+      // 3. Salvar
+      saveAppData(appData);
+      
+      // 4. (TODO - Futuro) Enviar para o N8N (Update Cotação)
+      
+      // 5. Re-renderizar
+      showFeedback("Cotação finalizada com sucesso!", "success");
+      init();
+    }
+    
+    /**
+     * Lida com o clique no botão "Copiar Texto"
+     */
+    function handleCopyText(event) {
+      const itemId = event.currentTarget.dataset.itemId;
+      const item = getItemById('quoteItems', itemId);
+      const { quote } = pageState;
+
+      if (!item || !quote) {
+        showError("Não foi possível encontrar o item ou cotação.");
+        return;
+      }
+
+      const text = getWhatsappText(quote, item);
+      
+      try {
+        // Usa a API de Clipboard moderna
+        navigator.clipboard.writeText(text).then(() => {
+          showFeedback("Texto copiado para a área de transferência!", "success");
+        }, (err) => {
+          // Fallback para document.execCommand (necessário em alguns iframes)
+          console.warn("Falha no navigator.clipboard, usando fallback:", err);
+          copyTextFallback(text);
+        });
+      } catch (err) {
+        console.error("API de Clipboard não disponível, usando fallback:", err);
+        copyTextFallback(text);
+      }
+    }
+
+    /**
+     * Fallback para copiar texto (para iframes/http)
+     */
+    function copyTextFallback(text) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed"; // Evita scroll
+      textArea.style.opacity = 0;
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        showFeedback("Texto copiado!", "success");
+      } catch (errFallback) {
+        console.error("Falha no fallback de cópia:", errFallback);
+        showError("Falha ao copiar texto. Copie manualmente.");
+      }
+      document.body.removeChild(textArea);
+    }
+
+    /**
+     * Lida com o clique no botão "Abrir WhatsApp"
+     */
+    function handleOpenWhatsApp(event) {
+      const itemId = event.currentTarget.dataset.itemId;
+      const item = getItemById('quoteItems', itemId);
+      const { quote } = pageState;
+
+      if (!item || !quote) {
+        showError("Não foi possível encontrar o item ou cotação.");
+        return;
+      }
+
+      // 1. Encontrar o fornecedor e o número
+      const supplier = getSupplierById(item.property_fornecedor[0]);
+      if (!supplier) {
+        showError("Fornecedor não encontrado.");
+        return;
+      }
+
+      const phone = supplier.property_whats_app;
+      if (!phone) {
+        showError(`Fornecedor ${supplier.property_nome} não possui WhatsApp cadastrado.`);
+        return;
+      }
+      
+      // 2. Limpar o número (remover +, espaços, (, ), -)
+      const cleanPhone = phone.replace(/[\s\+\-\(\)]/g, '');
+      
+      // 3. Gerar o texto
+      const text = getWhatsappText(quote, item);
+      const encodedText = encodeURIComponent(text);
+      
+      // 4. Abrir o link
+      const url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+      window.open(url, '_blank');
     }
     
     /**
@@ -294,147 +611,6 @@
             </a>
           </div>
         `;
-      }
-    }
-    
-    /**
-     * Adiciona todos os event listeners da página
-     */
-    function addEventListeners() {
-      // Botão WhatsApp
-      document.getElementById('whatsapp-btn')?.addEventListener('click', handleWhatsappClick);
-      
-      // Inputs de Preço
-      document.querySelectorAll('.preco-input').forEach(input => {
-        input.addEventListener('change', handlePrecoChange);
-      });
-      
-      // Botões de Ação dos Itens
-      document.querySelectorAll('.aprovar-btn').forEach(btn => {
-        btn.addEventListener('click', handleAprovarClick);
-      });
-      
-      document.querySelectorAll('.rejeitar-btn').forEach(btn => {
-        btn.addEventListener('click', handleRejeitarClick);
-      });
-    }
-    
-    // --- Lógica de Ações ---
-    
-    /**
-     * Gera o texto para o WhatsApp e copia para a área de transferência
-     */
-    function getWhatsappText() {
-      const { quote } = pageState;
-      const productName = getProductName(quote.property_produto[0]);
-      const quantidade = quote.property_quantidade || 'N/A';
-      const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
-      
-      // Texto Genérico (RN-001-3)
-      return `
-        Olá, gostaria de cotar o seguinte item:
-        Produto: ${productName}
-        Quantidade: ${quantidade} ${unidade}
-        
-        Referência: ${quote.property_nome}
-        
-        Aguardo o seu retorno com o valor. Obrigado!
-      `.trim().replace(/^\s+/gm, ''); // Remove espaços extras e indentação
-    }
-    
-    function handleWhatsappClick() {
-      const text = getWhatsappText();
-      
-      try {
-        // Usa a API de Clipboard moderna
-        navigator.clipboard.writeText(text).then(() => {
-          showFeedback("Texto para WhatsApp copiado!", "success");
-        }, (err) => {
-          // Fallback para document.execCommand (necessário em alguns iframes)
-          console.warn("Falha no navigator.clipboard, usando fallback:", err);
-          const textArea = document.createElement("textarea");
-          textArea.value = text;
-          textArea.style.position = "fixed"; // Evita scroll
-          textArea.style.opacity = 0;
-          document.body.appendChild(textArea);
-          textArea.focus();
-          textArea.select();
-          try {
-            document.execCommand('copy');
-            showFeedback("Texto para WhatsApp copiado!", "success");
-          } catch (errFallback) {
-            console.error("Falha no fallback de cópia:", errFallback);
-            showError("Falha ao copiar texto. Copie manualmente.");
-          }
-          document.body.removeChild(textArea);
-        });
-      } catch (err) {
-        console.error("API de Clipboard não disponível:", err);
-        showError("Falha ao copiar. API não disponível.");
-      }
-    }
-    
-    /**
-     * Atualiza o preço de um item no localStorage
-     */
-    function handlePrecoChange(event) {
-      const itemId = event.target.dataset.itemId;
-      const novoPreco = parseFloat(event.target.value) || 0;
-      
-      // Encontra o item no estado da aplicação (appData)
-      const itemIndex = pageState.appData.quoteItems.findIndex(i => i.id === itemId);
-      if (itemIndex > -1) {
-        pageState.appData.quoteItems[itemIndex].property_preco = novoPreco;
-        saveAppData(pageState.appData); // Salva a alteração
-        showFeedback("Preço atualizado.", "success");
-      } else {
-        showError("Erro ao salvar: Item não encontrado.");
-      }
-    }
-    
-    /**
-     * Aprova um item (e rejeita os outros)
-     */
-    function handleAprovarClick(event) {
-      const itemIdAprovado = event.target.dataset.itemId;
-      
-      pageState.quoteItems.forEach(item => {
-        const itemIndex = pageState.appData.quoteItems.findIndex(i => i.id === item.id);
-        if (itemIndex === -1) return;
-        
-        if (item.id === itemIdAprovado) {
-          pageState.appData.quoteItems[itemIndex].property_status = "Aprovado";
-        } else {
-          pageState.appData.quoteItems[itemIndex].property_status = "Rejeitado";
-        }
-      });
-      
-      // Atualiza o status da Cotação principal
-      const quoteIndex = pageState.appData.quotes.findIndex(q => q.id === pageState.quoteId);
-      if (quoteIndex > -1) {
-        pageState.appData.quotes[quoteIndex].property_status = "Aguardando";
-      }
-      
-      // Salva tudo
-      saveAppData(pageState.appData);
-      
-      // Re-renderiza a tela para mostrar as mudanças
-      showFeedback("Item aprovado! A cotação mudou para 'Aguardando'.", "success");
-      init(); // Recarrega os dados e renderiza a tela
-    }
-    
-    /**
-     * Rejeita um item específico
-     */
-    function handleRejeitarClick(event) {
-      const itemIdRejeitado = event.target.dataset.itemId;
-      
-      const itemIndex = pageState.appData.quoteItems.findIndex(i => i.id === itemIdRejeitado);
-      if (itemIndex > -1) {
-        pageState.appData.quoteItems[itemIndex].property_status = "Rejeitado";
-        saveAppData(pageState.appData);
-        showFeedback("Item rejeitado.", "success");
-        init(); // Recarrega e renderiza
       }
     }
 
