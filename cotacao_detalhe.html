@@ -61,6 +61,8 @@
       getProductName,
       getSupplierName,
       getSupplierById, // <-- ADICIONADO
+      updateQuoteItemApi, // <-- ADICIONADO
+      finalizeQuoteApi, // <-- ADICIONADO
       formatDate,
       COLORS
     } from './app.js';
@@ -136,7 +138,8 @@
         case 'Aguardando':
           statusColor = 'bg-yellow-100 text-yellow-800';
           break;
-        case 'Finalizada':
+        case 'Concluído': // Atualizado para corresponder ao Notion
+        case 'Finalizada': // Mantendo compatibilidade temporária
           statusColor = 'bg-green-100 text-green-800';
           break;
       }
@@ -404,7 +407,7 @@
     /**
      * Lida com a mudança de preço em um item
      */
-    function handlePriceChange(event) {
+    async function handlePriceChange(event) {
       const itemId = event.target.dataset.itemId;
       const newPrice = parseFloat(event.target.value) || 0;
 
@@ -420,27 +423,44 @@
       appData.quoteItems[itemIndex].property_preco = newPrice;
 
       // Se o status for "Criado" ou "Enviado Fornecedor", muda para "Respondido"
+      let statusChanged = false;
       if (['Criado', 'Enviado Fornecedor'].includes(appData.quoteItems[itemIndex].property_status)) {
         appData.quoteItems[itemIndex].property_status = 'Respondido';
+        statusChanged = true;
       }
 
       // 2. Salvar no localStorage
       saveAppData(appData);
 
-      // 3. Feedback e Re-renderização
-      showFeedback("Preço salvo com sucesso!", "success");
+      // 3. Enviar para o N8N
+      try {
+        // Envia payload completo: Preço + Status Atual
+        const currentStatus = appData.quoteItems[itemIndex].property_status;
+        const updateData = {
+          price: newPrice,
+          status: currentStatus
+        };
 
-      // 4. (TODO - Futuro) Enviar para o N8N (Update Item)
-      // postApi(N8N_URLS.updateQuoteItem, appData.quoteItems[itemIndex]);
+        // Chamada assíncrona
+        const response = await updateQuoteItemApi(itemId, updateData);
 
-      // 5. Re-renderizar a tela para atualizar status
+        // Mostra mensagem retornada pelo N8N se existir
+        const msg = response.Message || response.message || "Preço salvo e sincronizado!";
+        showFeedback(msg, "success");
+
+      } catch (error) {
+        console.error("Erro ao salvar no N8N:", error);
+        showFeedback("Salvo localmente, mas falhou ao sincronizar.", "warning");
+      }
+
+      // 4. Re-renderizar a tela para atualizar status
       init();
     }
 
     /**
      * Lida com Aprovar/Rejeitar um item
      */
-    function handleItemStatusUpdate(itemId, newStatus) {
+    async function handleItemStatusUpdate(itemId, newStatus) {
       const { appData, quoteItems } = pageState;
 
       // 1. Encontrar o item e o índice
@@ -450,8 +470,20 @@
         return;
       }
 
-      // 2. Atualizar o item
+      // 2. Atualizar o item principal
       appData.quoteItems[itemIndex].property_status = newStatus;
+
+      // Lista de atualizações a fazer (Sequencial)
+      const updatesToDo = [];
+
+      // Adiciona o item principal na fila
+      updatesToDo.push({
+        id: itemId,
+        data: {
+          price: appData.quoteItems[itemIndex].property_preco || 0,
+          status: newStatus
+        }
+      });
 
       // 3. RN-001-2: Se APROVOU este, REJEITA os outros
       if (newStatus === 'Aprovado') {
@@ -465,6 +497,15 @@
             // Só rejeita se não estiver já Aprovado/Rejeitado
             if (['Criado', 'Enviado Fornecedor', 'Respondido'].includes(appData.quoteItems[otherItemIndex].property_status)) {
               appData.quoteItems[otherItemIndex].property_status = 'Rejeitado';
+
+              // Adiciona atualização dos rejeitados na fila
+              updatesToDo.push({
+                id: item.id,
+                data: {
+                  price: appData.quoteItems[otherItemIndex].property_preco || 0,
+                  status: 'Rejeitado'
+                }
+              });
             }
           }
         });
@@ -473,7 +514,19 @@
       // 4. Salvar no localStorage
       saveAppData(appData);
 
-      // 5. (TODO - Futuro) Enviar para o N8N (Update Item)
+      // 5. Executar chamadas N8N Sequencialmente
+      try {
+        showFeedback("Sincronizando itens (um por um)...", "info");
+
+        for (const update of updatesToDo) {
+          await updateQuoteItemApi(update.id, update.data);
+        }
+
+        showFeedback("Todos os itens foram atualizados!", "success");
+      } catch (error) {
+        console.error("Erro ao sincronizar status:", error);
+        showFeedback("Atualizado localmente, mas houve erro na sincronização.", "warning");
+      }
 
       // 6. Re-renderizar
       init();
@@ -482,7 +535,7 @@
     /**
      * Lida com a finalização da cotação
      */
-    function handleFinalizeQuote() {
+    async function handleFinalizeQuote() {
       const { appData, quoteId } = pageState;
 
       // 1. Encontrar a cotação
@@ -492,16 +545,27 @@
         return;
       }
 
-      // 2. Mudar status
-      appData.quotes[quoteIndex].property_status = 'Finalizada';
+      // 2. Mudar status para 'Concluído'
+      const newStatus = 'Concluído';
+      appData.quotes[quoteIndex].property_status = newStatus;
 
-      // 3. Salvar
+      // 3. Salvar localmente
       saveAppData(appData);
 
-      // 4. (TODO - Futuro) Enviar para o N8N (Update Cotação)
+      // 4. Enviar para o N8N
+      try {
+        showFeedback("Finalizando cotação...", "info");
+        const response = await finalizeQuoteApi(quoteId, newStatus);
+
+        const msg = response.Message || response.message || "Cotação finalizada!";
+        showFeedback(msg, "success");
+
+      } catch (error) {
+        console.error("Erro ao finalizar no N8N:", error);
+        showFeedback("Finalizada localmente, mas falhou ao sincronizar.", "warning");
+      }
 
       // 5. Re-renderizar
-      showFeedback("Cotação finalizada com sucesso!", "success");
       init();
     }
 

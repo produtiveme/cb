@@ -25,7 +25,10 @@ const N8N_URLS = {
   loadStockHistory: "/curral-burguer_carrega_historico_estoque", // Corrigido nome historico_estoque
   loadStockHistory: "/curral-burguer_carrega_historico_estoque", // Corrigido nome historico_estoque
   createQuote: "/curral-burguer_cria_cotacao",
-  login: "/curral-burguer_login" // Novo endpoint de login
+  createQuote: "/curral-burguer_cria_cotacao",
+  login: "/curral-burguer_login", // Novo endpoint de login
+  updateQuoteItem: "/curral-burguer_atualiza_item_cotacao", // Novo endpoint
+  finalizeQuote: "/curral-burguer_finaliza_cotacao" // Novo endpoint
 };
 
 // --- 2. UTILITÁRIOS DE API ---
@@ -163,6 +166,45 @@ async function loginApi(username, password) {
     console.error("Erro no login:", error);
     throw error;
   }
+}
+
+/**
+ * Recupera o token de autenticação
+ */
+function getToken() {
+  return localStorage.getItem(TOKEN_KEY) || '';
+}
+
+/**
+ * Atualiza um item de cotação (Preço ou Status)
+ * @param {string} itemId ID do item no Notion
+ * @param {object} data Dados a atualizar { price, status }
+ */
+async function updateQuoteItemApi(itemId, data) {
+  const token = getToken();
+  // Garante que price seja enviado (0 se não existir) e status também
+  const payload = {
+    id: itemId,
+    price: data.price !== undefined ? data.price : 0,
+    status: data.status || 'Criado', // Fallback seguro
+    token: token
+  };
+  return await postApi(N8N_URLS.updateQuoteItem, payload);
+}
+
+/**
+ * Finaliza uma cotação
+ * @param {string} quoteId ID da cotação no Notion
+ * @param {string} status Novo status (ex: "Concluído")
+ */
+async function finalizeQuoteApi(quoteId, status) {
+  const token = getToken();
+  const payload = {
+    id: quoteId,
+    status: status,
+    token: token
+  };
+  return await postApi(N8N_URLS.finalizeQuote, payload);
 }
 
 // --- 3. GESTÃO DE DADOS (localStorage) ---
@@ -640,6 +682,8 @@ export {
   fetchApi,
   postApi,
   loginApi, // Exporta a função de login
+  updateQuoteItemApi, // Exporta atualização de item
+  finalizeQuoteApi, // Exporta finalização de cotação
   // Dados
   saveAppData,
   saveSession, // Exporta a função de sessão
