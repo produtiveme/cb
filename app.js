@@ -23,7 +23,9 @@ const N8N_URLS = {
   loadQuotes: "/curral-burguer_carrega_todo_cotacao", // Corrigido nome cotacao
   loadQuoteItems: "/curral-burguer_carrega_item_cotacao", // Corrigido nome item_cotacao
   loadStockHistory: "/curral-burguer_carrega_historico_estoque", // Corrigido nome historico_estoque
-  createQuote: "/curral-burguer_cria_cotacao"
+  loadStockHistory: "/curral-burguer_carrega_historico_estoque", // Corrigido nome historico_estoque
+  createQuote: "/curral-burguer_cria_cotacao",
+  login: "/curral-burguer_login" // Novo endpoint de login
 };
 
 // --- 2. UTILITÁRIOS DE API ---
@@ -38,36 +40,36 @@ async function fetchApi(endpoint) {
   try {
     const response = await fetch(url);
     if (!response.ok) {
-       // Tenta ler a resposta de erro, se houver
+      // Tenta ler a resposta de erro, se houver
       let errorBody = `Status: ${response.status}`;
       try {
         const errorJson = await response.json();
         errorBody = errorJson.message || JSON.stringify(errorJson);
       } catch (e) {
-         try {
-           errorBody = await response.text();
-         } catch(e2) { /* Ignora se não conseguir ler */}
+        try {
+          errorBody = await response.text();
+        } catch (e2) { /* Ignora se não conseguir ler */ }
       }
       throw new Error(`Erro de rede: ${response.statusText}. ${errorBody} (URL: ${url})`);
     }
     // Verifica se a resposta está vazia antes de tentar fazer o parse
     const textResponse = await response.text();
     if (!textResponse) {
-        console.warn(`Resposta vazia recebida de [GET] ${url}`);
-        return []; // Retorna array vazio ou null, dependendo do esperado
+      console.warn(`Resposta vazia recebida de [GET] ${url}`);
+      return []; // Retorna array vazio ou null, dependendo do esperado
     }
     try {
-        return JSON.parse(textResponse); // Tenta fazer o parse do texto como JSON
-    } catch(e) {
-        console.error(`Falha ao fazer parse do JSON da resposta [GET] ${url}:`, textResponse);
-        throw new Error(`Resposta inválida recebida do servidor.`);
+      return JSON.parse(textResponse); // Tenta fazer o parse do texto como JSON
+    } catch (e) {
+      console.error(`Falha ao fazer parse do JSON da resposta [GET] ${url}:`, textResponse);
+      throw new Error(`Resposta inválida recebida do servidor.`);
     }
   } catch (error) {
     console.error(`Falha na chamada API [GET] ${url}:`, error);
     // Remove a URL da mensagem de erro para o usuário final
     const userFriendlyMessage = error.message.includes('(URL:')
-        ? error.message.split('(URL:')[0].trim()
-        : error.message;
+      ? error.message.split('(URL:')[0].trim()
+      : error.message;
     throw new Error(userFriendlyMessage);
   }
 }
@@ -92,19 +94,19 @@ async function postApi(endpoint, body) {
     // Lê a resposta como texto primeiro para verificar se está vazia
     const textResponse = await response.text();
     let responseBody = {}; // Objeto padrão caso a resposta seja vazia
-     if (textResponse) {
-        try {
-            responseBody = JSON.parse(textResponse); // Tenta fazer o parse
-        } catch(e) {
-             console.error(`Falha ao fazer parse do JSON da resposta [POST] ${url}:`, textResponse);
-             throw new Error(`Resposta inválida recebida do servidor.`);
-        }
+    if (textResponse) {
+      try {
+        responseBody = JSON.parse(textResponse); // Tenta fazer o parse
+      } catch (e) {
+        console.error(`Falha ao fazer parse do JSON da resposta [POST] ${url}:`, textResponse);
+        throw new Error(`Resposta inválida recebida do servidor.`);
+      }
     } else {
-        console.warn(`Resposta vazia recebida de [POST] ${url}`);
-        // Se a resposta for vazia mas o status for OK, considera sucesso
-        if (!response.ok) {
-           throw new Error(`Erro de rede: ${response.statusText} (Status: ${response.status})`);
-        }
+      console.warn(`Resposta vazia recebida de [POST] ${url}`);
+      // Se a resposta for vazia mas o status for OK, considera sucesso
+      if (!response.ok) {
+        throw new Error(`Erro de rede: ${response.statusText} (Status: ${response.status})`);
+      }
     }
 
 
@@ -119,9 +121,47 @@ async function postApi(endpoint, body) {
     console.error(`Falha na chamada API [POST] ${url}:`, error);
     // Repassa a mensagem de erro específica do N8N (se existir)
     const userFriendlyMessage = error.message.includes('(URL:')
-        ? error.message.split('(URL:')[0].trim()
-        : error.message;
+      ? error.message.split('(URL:')[0].trim()
+      : error.message;
     throw new Error(userFriendlyMessage || 'Erro de rede ao enviar dados.');
+  }
+}
+
+/**
+ * Realiza o login via API N8N
+ * @param {string} username 
+ * @param {string} password 
+ * @returns {Promise<object>} Dados do usuário se sucesso
+ */
+async function loginApi(username, password) {
+  const url = `${N8N_URLS.BASE_URL}${N8N_URLS.login}`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username, password })
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error("Usuário ou senha inválidos.");
+      }
+      throw new Error(`Erro no login: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Contrato esperado: { authenticated: true, user: { ... } }
+    if (!data.authenticated) {
+      throw new Error(data.message || "Falha na autenticação.");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Erro no login:", error);
+    throw error;
   }
 }
 
@@ -129,6 +169,7 @@ async function postApi(endpoint, body) {
 
 const APP_DATA_KEY = 'curralBurguerAppData';
 const AUTH_KEY = 'isAuthenticated'; // <-- Chave de autenticação
+const TOKEN_KEY = 'authToken'; // <-- Chave do Token JWT
 
 /**
  * Salva todos os dados da aplicação no localStorage
@@ -144,6 +185,19 @@ function saveAppData(appData) {
 }
 
 /**
+ * Salva a sessão do usuário (Autenticação + Token)
+ * @param {object} user Objeto usuário retornado pelo login
+ */
+function saveSession(user) {
+  localStorage.setItem(AUTH_KEY, 'true');
+  if (user.token) {
+    localStorage.setItem(TOKEN_KEY, user.token);
+  }
+  // Salva dados do usuário também se necessário
+  localStorage.setItem('currentUser', JSON.stringify(user));
+}
+
+/**
  * Obtém todos os dados da aplicação do localStorage
  * @returns {object | null} O objeto de estado da aplicação ou null se não existir
  */
@@ -155,7 +209,7 @@ function getAppData() {
     console.error("Falha ao ler dados do localStorage:", error);
     showError("Erro crítico: Não foi possível ler os dados da sessão.");
     localStorage.removeItem(APP_DATA_KEY); // Limpa dados corrompidos
-    localStorage.removeItem(AUTH_KEY); // Desloga o usuário
+    clearAppData(); // Limpa sessão
     return null;
   }
 }
@@ -165,7 +219,9 @@ function getAppData() {
  */
 function clearAppData() {
   localStorage.removeItem(APP_DATA_KEY);
-  localStorage.removeItem(AUTH_KEY); // Limpa também a flag de autenticação
+  localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('currentUser');
 }
 
 /**
@@ -180,11 +236,11 @@ function getItemById(type, id) {
     console.warn(`Tentativa de buscar item por ID em dados inexistentes: tipo=${type}, id=${id}`);
     return undefined;
   }
-   // Adiciona verificação se appData[type] é um array
-   if (!Array.isArray(appData[type])) {
-       console.error(`Os dados para "${type}" não são um array. Verifique o carregamento inicial.`);
-       return undefined;
-   }
+  // Adiciona verificação se appData[type] é um array
+  if (!Array.isArray(appData[type])) {
+    console.error(`Os dados para "${type}" não são um array. Verifique o carregamento inicial.`);
+    return undefined;
+  }
   return appData[type].find(item => item.id === id);
 }
 
@@ -205,9 +261,9 @@ function getQuoteById(id) {
  * @returns {string} O nome do produto ou "Produto não encontrado"
  */
 function getProductName(productId) {
-    if (!productId) return 'Produto inválido'; // Verifica se productId é válido
-    const product = getProductById(productId);
-    return product ? product.property_nome : 'Produto não encontrado';
+  if (!productId) return 'Produto inválido'; // Verifica se productId é válido
+  const product = getProductById(productId);
+  return product ? product.property_nome : 'Produto não encontrado';
 }
 
 /**
@@ -216,7 +272,7 @@ function getProductName(productId) {
  * @returns {string} O nome do fornecedor ou "Fornecedor não encontrado"
  */
 function getSupplierName(supplierId) {
-   if (!supplierId) return 'Fornecedor inválido'; // Verifica se supplierId é válido
+  if (!supplierId) return 'Fornecedor inválido'; // Verifica se supplierId é válido
   const supplier = getSupplierById(supplierId);
   return supplier ? supplier.property_nome : 'Fornecedor não encontrado';
 }
@@ -237,11 +293,11 @@ function checkAuth() {
     return false;
   }
   // Adicional: Verifica se os dados existem, mas não redireciona se não existirem ainda
-   const appData = getAppData();
-   if (!appData) {
-       console.warn("Usuário autenticado, mas dados da aplicação não encontrados no localStorage.");
-       // Não redireciona aqui, a página pode estar a carregar os dados
-   }
+  const appData = getAppData();
+  if (!appData) {
+    console.warn("Usuário autenticado, mas dados da aplicação não encontrados no localStorage.");
+    // Não redireciona aqui, a página pode estar a carregar os dados
+  }
   return true;
 }
 
@@ -274,7 +330,7 @@ function renderLoading(container, text = "Carregando...") {
       </div>
     `;
   } else {
-     console.error("Container para renderLoading não encontrado.");
+    console.error("Container para renderLoading não encontrado.");
   }
 }
 
@@ -306,8 +362,8 @@ function renderScreenHeader(title, subtitle = '', children = '') {
 function renderSidebarNav(activePage = 'estoque') {
   const container = document.getElementById('sidebar-container');
   if (!container) {
-     console.error("Container da sidebar não encontrado.");
-     return;
+    console.error("Container da sidebar não encontrado.");
+    return;
   }
 
 
@@ -359,12 +415,12 @@ function renderSidebarNav(activePage = 'estoque') {
   // Adiciona o evento de clique ao botão de logout
   const logoutButton = document.getElementById('logout-button');
   if (logoutButton) {
-     logoutButton.addEventListener('click', () => {
-        clearAppData(); // Usa a função de logout correta
-        window.location.href = 'login.html'; // Redireciona
-     });
+    logoutButton.addEventListener('click', () => {
+      clearAppData(); // Usa a função de logout correta
+      window.location.href = 'login.html'; // Redireciona
+    });
   } else {
-     console.error("Botão de logout não encontrado.");
+    console.error("Botão de logout não encontrado.");
   }
 }
 
@@ -447,9 +503,9 @@ function showConfirmationModal({ title, messageHtml, confirmText, cancelText, as
     return;
   }
 
-   // Remove modal anterior, se existir
-   const existingModal = document.getElementById('dynamic-confirmation-modal');
-   if (existingModal) existingModal.remove();
+  // Remove modal anterior, se existir
+  const existingModal = document.getElementById('dynamic-confirmation-modal');
+  if (existingModal) existingModal.remove();
 
   const modalElement = document.createElement('div');
   modalElement.id = 'dynamic-confirmation-modal'; // ID único
@@ -514,9 +570,9 @@ function showConfirmationModal({ title, messageHtml, confirmText, cancelText, as
     try {
       // 2. Executar a ação assíncrona (ex: chamar N8N)
       if (typeof asyncAction === 'function') {
-         await asyncAction(); // Espera a Promise resolver
+        await asyncAction(); // Espera a Promise resolver
       } else {
-         console.warn("asyncAction não é uma função.");
+        console.warn("asyncAction não é uma função.");
       }
 
       // 3. Se deu certo, fechar o modal
@@ -549,7 +605,7 @@ function formatDate(dateInput) {
     const date = new Date(dateInput);
     // Verifica se a data é válida após a conversão
     if (isNaN(date.getTime())) {
-        throw new Error("Data inválida após conversão");
+      throw new Error("Data inválida após conversão");
     }
 
     // Adiciona o fuso horário para evitar problemas de "um dia antes"
@@ -559,7 +615,7 @@ function formatDate(dateInput) {
 
     // Verifica novamente após correção do fuso horário
     if (isNaN(correctedDate.getTime())) {
-       throw new Error("Data inválida após correção de fuso horário");
+      throw new Error("Data inválida após correção de fuso horário");
     }
 
 
@@ -583,8 +639,10 @@ export {
   // API
   fetchApi,
   postApi,
+  loginApi, // Exporta a função de login
   // Dados
   saveAppData,
+  saveSession, // Exporta a função de sessão
   getAppData,
   clearAppData,
   getItemById,

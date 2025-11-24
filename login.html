@@ -1,20 +1,22 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body class="flex items-center justify-center min-h-screen">
-  
+
   <!-- Container para Alertas -->
   <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
-  
+
   <!-- Container do Modal (inicialmente oculto) -->
   <div id="modal-container" class="hidden"></div>
 
@@ -31,47 +33,35 @@
     <form id="login-form" class="space-y-6">
       <div>
         <label for="username" class="block text-sm font-medium text-gray-700">Usuário</label>
-        <input 
-          type="text" 
-          id="username" 
-          name="username" 
-          value="admin"
+        <input type="text" id="username" name="username" value="admin"
           class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-          style="--tw-ring-color: #FF4E00;"
-          required
-        >
+          style="--tw-ring-color: #FF4E00;" required>
       </div>
 
       <div>
         <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
-        <input 
-          type="password" 
-          id="password" 
-          name="password" 
-          value="admin"
+        <input type="password" id="password" name="password" value="admin"
           class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-          style="--tw-ring-color: #FF4E00;"
-          required
-        >
+          style="--tw-ring-color: #FF4E00;" required>
       </div>
 
       <!-- Spinner (Oculto por padrão) -->
       <div id="loading-spinner" class="hidden text-center py-2">
-        <svg class="animate-spin h-6 w-6 text-gray-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg class="animate-spin h-6 w-6 text-gray-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none"
+          viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+          </path>
         </svg>
         <p class="mt-2 text-sm text-gray-500">A carregar dados do N8N...</p>
       </div>
 
       <!-- Botão de Login -->
       <div>
-        <button 
-          type="submit" 
-          id="login-button"
+        <button type="submit" id="login-button"
           class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white transition-colors"
-          style="background-color: #FF4E00;"
-        >
+          style="background-color: #FF4E00;">
           Entrar
         </button>
       </div>
@@ -80,11 +70,13 @@
 
   <!-- Script da Página -->
   <script type="module">
-    import { 
-      N8N_URLS, 
-      fetchApi, 
+    import {
+      N8N_URLS,
+      fetchApi,
       saveAppData,
-      showError 
+      saveSession, // Importa saveSession
+      showError,
+      loginApi
     } from './app.js';
 
     // --- Elementos DOM ---
@@ -129,7 +121,7 @@
      */
     async function loadInitialData() {
       try {
-        setLoading(true);
+        // setLoading(true); // Removido pois já é controlado pelo handleLogin
 
         const [
           productsData,
@@ -181,27 +173,30 @@
       const username = usernameInput.value;
       const password = passwordInput.value;
 
-      // TODO: Implementar Webhook de Login Real
-      // Por enquanto, usamos a lógica simulada
-      if (username === 'admin' && password === 'admin') {
-        try {
-          // 1. Carrega os dados do N8N
-          await loadInitialData();
+      // Autenticação Real via N8N
+      try {
+        setLoading(true); // Garante que o spinner apareça
 
-          // 2. Se o carregamento deu certo, marca como autenticado
-          localStorage.setItem('isAuthenticated', 'true');
-          
-          // 3. Redireciona para a página de estoque
-          window.location.href = 'estoque.html';
+        // 1. Chama a API de Login
+        // Se falhar, vai para o catch e mostra erro
+        const loginData = await loginApi(username, password);
 
-        } catch (error) {
-          // O erro já foi exibido pela loadInitialData
-          console.error("Login falhou durante o carregamento de dados.", error);
-          // Limpa a autenticação se falhar
-          localStorage.removeItem('isAuthenticated');
-        }
-      } else {
-        showError("Usuário ou senha inválidos.");
+        // 2. Se login OK, carrega os dados iniciais
+        await loadInitialData();
+
+        // 3. Salva a sessão (Token + Auth Flag)
+        saveSession(loginData.user);
+
+        // 4. Redireciona
+        window.location.href = 'estoque.html';
+
+      } catch (error) {
+        console.error("Falha no login:", error);
+        showError(error.message || "Erro ao tentar fazer login.");
+        // Limpa autenticação por precaução
+        localStorage.removeItem('isAuthenticated');
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -211,4 +206,5 @@
   </script>
 
 </body>
+
 </html>

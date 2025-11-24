@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detalhe da Cotação - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
-    
+
     <!-- Sidebar (será preenchida pelo app.js) -->
     <div id="sidebar-container"></div>
 
@@ -25,7 +27,7 @@
 
       <!-- Container para Alertas -->
       <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
-      
+
       <!-- Container do Modal (inicialmente oculto) -->
       <div id="modal-container" class="hidden"></div>
 
@@ -33,7 +35,7 @@
       <div id="quote-detail-container">
         <!-- O Spinner de carregamento ou os detalhes serão injetados aqui -->
       </div>
-      
+
     </main>
   </div>
 
@@ -86,7 +88,7 @@
         showError("Falha ao carregar dados. Tente fazer login novamente.");
         return;
       }
-      
+
       // 3. Pega o ID da cotação da URL
       pageState.quoteId = getUrlParam('id');
       if (!pageState.quoteId) {
@@ -94,7 +96,7 @@
         renderPageError("Cotação não encontrada.");
         return;
       }
-      
+
       // 4. Encontra a cotação
       pageState.quote = getQuoteById(pageState.quoteId);
       if (!pageState.quote) {
@@ -102,7 +104,7 @@
         renderPageError(`Cotação com ID ${pageState.quoteId} não foi encontrada.`);
         return;
       }
-      
+
       // 5. Encontra os itens desta cotação
       if (pageState.quote.property_item && Array.isArray(pageState.quote.property_item)) {
         pageState.quoteItems = pageState.quote.property_item
@@ -113,11 +115,11 @@
       // 6. Renderiza componentes estáticos
       renderSidebarNav('cotacoes'); // Mantém 'Cotações' como ativo
       renderFooter();
-      
+
       // 7. Renderiza a tela de detalhes
       renderCotacaoDetailScreen();
     }
-    
+
     /**
      * Renderiza o layout principal da tela de detalhes
      */
@@ -125,11 +127,11 @@
       const { quote, quoteItems } = pageState;
       const container = document.getElementById('quote-detail-container');
       if (!container) return;
-      
+
       // --- Definições de Status ---
       const status = quote.property_status || 'Indefinido';
       let statusColor = 'bg-gray-200 text-gray-800'; // Rascunho
-      
+
       switch (status) {
         case 'Aguardando':
           statusColor = 'bg-yellow-100 text-yellow-800';
@@ -138,11 +140,11 @@
           statusColor = 'bg-green-100 text-green-800';
           break;
       }
-      
+
       const productName = getProductName(quote.property_produto[0]);
       const quantidade = quote.property_quantidade || 'N/A';
       const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
-      
+
       // --- Botões do Cabeçalho ---
       const headerButtons = `
         <div class="flex items-center space-x-2">
@@ -163,7 +165,7 @@
           </a>
         </div>
       `;
-      
+
       // --- Subtítulo do Cabeçalho ---
       const subtitle = `
         <span>Produto: <strong>${productName}</strong></span>
@@ -172,20 +174,20 @@
         <span class="mx-2">|</span>
         <span>Status: <span class="px-2 py-0.5 text-xs font-semibold rounded-full ${statusColor}">${status}</span></span>
       `;
-      
+
       // Renderiza Cabeçalho
       renderScreenHeader(
-        `Detalhes: ${quote.property_nome}`, 
-        subtitle, 
+        `Detalhes: ${quote.property_nome}`,
+        subtitle,
         headerButtons
       );
-      
+
       // --- Renderiza Conteúdo (Tabela de Itens) ---
       if (quoteItems.length === 0) {
         container.innerHTML = `<div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">Nenhum item encontrado para esta cotação.</div>`;
         return;
       }
-      
+
       container.innerHTML = `
         <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-hidden">
           <table class="min-w-full divide-y divide-gray-200">
@@ -207,11 +209,11 @@
         <!-- Card de Ações da Cotação (ex: Finalizar) -->
         ${renderQuoteActionsCard(quote, quoteItems)}
       `;
-      
+
       // Adiciona listeners aos botões da tabela
       addEventListeners();
     }
-    
+
     /**
      * Renderiza uma linha da tabela de itens
      */
@@ -219,11 +221,11 @@
       const supplierName = getSupplierName(item.property_fornecedor[0]);
       const status = item.property_status || 'Criado';
       const preco = item.property_preco || 0;
-      
+
       // Define o badge de status
       let statusColor = 'bg-gray-100 text-gray-800'; // Criado
-      switch(status) {
-        case 'Enviado':
+      switch (status) {
+        case 'Enviado Fornecedor': // Atualizado
           statusColor = 'bg-blue-100 text-blue-800';
           break;
         case 'Respondido':
@@ -236,7 +238,7 @@
           statusColor = 'bg-red-100 text-red-800';
           break;
       }
-      
+
       // Verifica se o item pode ser editado (Ainda não foi Aprovado/Rejeitado)
       const canEdit = status !== 'Aprovado' && status !== 'Rejeitado';
 
@@ -285,10 +287,10 @@
               >
                 Rejeitar
               </button>
-            ` : (status === 'Aprovado' ? 
-                 '<span class="font-medium text-green-600">Aprovado</span>' : 
-                 '<span class="font-medium text-red-600">Rejeitado</span>')
-            }
+            ` : (status === 'Aprovado' ?
+          '<span class="font-medium text-green-600">Aprovado</span>' :
+          '<span class="font-medium text-red-600">Rejeitado</span>')
+        }
           </td>
           
           <!-- Enviar Mensagem (NOVOS BOTÕES) -->
@@ -312,7 +314,7 @@
         </tr>
       `;
     }
-    
+
     /**
      * Renderiza o card de Ações da Cotação (Botão Finalizar)
      */
@@ -321,7 +323,7 @@
       const allItemsProcessed = items.every(
         item => ['Respondido', 'Aprovado', 'Rejeitado'].includes(item.property_status)
       );
-      
+
       return `
         <div class="bg-white p-6 rounded-lg shadow border border-gray-200 mt-6">
           <h3 class="text-lg font-bold font-heading mb-4" style="color: ${COLORS.black};">Ações da Cotação</h3>
@@ -343,7 +345,7 @@
         </div>
       `;
     }
-    
+
     /**
      * Gera o texto para enviar ao WhatsApp (para um item/fornecedor específico)
      */
@@ -360,94 +362,94 @@
       text += `*Quantidade:* ${quantidade} ${unidade}\n\n`;
       text += `Aguardo seu retorno com o valor. Obrigado!\n\n`;
       text += `(Referência: ${quote.property_nome} / Item: ${item.property_nome})`;
-      
+
       return text.trim().replace(/^\s+/gm, ''); // Limpa indentação
     }
-    
+
     /**
      * Adiciona listeners de eventos aos inputs e botões
      */
     function addEventListeners() {
       // --- Listeners dos Itens ---
-      
+
       document.querySelectorAll('.price-input').forEach(input => {
         input.addEventListener('change', handlePriceChange);
       });
-      
+
       document.querySelectorAll('.approve-btn').forEach(btn => {
         btn.addEventListener('click', () => handleItemStatusUpdate(btn.dataset.itemId, 'Aprovado'));
       });
-      
+
       document.querySelectorAll('.reject-btn').forEach(btn => {
         btn.addEventListener('click', () => handleItemStatusUpdate(btn.dataset.itemId, 'Rejeitado'));
       });
-      
+
       // --- NOVOS Listeners de Mensagem ---
       document.querySelectorAll('.copy-text-btn').forEach(btn => {
         btn.addEventListener('click', handleCopyText);
       });
-      
+
       document.querySelectorAll('.open-wpp-btn').forEach(btn => {
         btn.addEventListener('click', handleOpenWhatsApp);
       });
-      
+
       // --- Listeners da Cotação ---
-      
+
       const finalizeBtn = document.getElementById('finalize-quote-btn');
       if (finalizeBtn) {
         finalizeBtn.addEventListener('click', handleFinalizeQuote);
       }
     }
-    
+
     /**
      * Lida com a mudança de preço em um item
      */
     function handlePriceChange(event) {
       const itemId = event.target.dataset.itemId;
       const newPrice = parseFloat(event.target.value) || 0;
-      
+
       // 1. Atualizar no appData (local)
       const appData = pageState.appData;
       const itemIndex = appData.quoteItems.findIndex(i => i.id === itemId);
-      
+
       if (itemIndex === -1) {
         showError("Erro ao salvar: Item não encontrado localmente.");
         return;
       }
-      
+
       appData.quoteItems[itemIndex].property_preco = newPrice;
-      
-      // Se o status for "Criado" ou "Enviado", muda para "Respondido"
-      if (['Criado', 'Enviado'].includes(appData.quoteItems[itemIndex].property_status)) {
+
+      // Se o status for "Criado" ou "Enviado Fornecedor", muda para "Respondido"
+      if (['Criado', 'Enviado Fornecedor'].includes(appData.quoteItems[itemIndex].property_status)) {
         appData.quoteItems[itemIndex].property_status = 'Respondido';
       }
-      
+
       // 2. Salvar no localStorage
       saveAppData(appData);
-      
+
       // 3. Feedback e Re-renderização
       showFeedback("Preço salvo com sucesso!", "success");
-      
+
       // 4. (TODO - Futuro) Enviar para o N8N (Update Item)
       // postApi(N8N_URLS.updateQuoteItem, appData.quoteItems[itemIndex]);
-      
+
       // 5. Re-renderizar a tela para atualizar status
-      init(); 
+      init();
     }
-    
+
     /**
      * Lida com Aprovar/Rejeitar um item
      */
     function handleItemStatusUpdate(itemId, newStatus) {
       const { appData, quoteItems } = pageState;
-      
+
       // 1. Encontrar o item e o índice
       const itemIndex = appData.quoteItems.findIndex(i => i.id === itemId);
       if (itemIndex === -1) {
         showError("Erro: Item não encontrado.");
         return;
       }
-      
+
       // 2. Atualizar o item
       appData.quoteItems[itemIndex].property_status = newStatus;
 
@@ -455,54 +457,54 @@
       if (newStatus === 'Aprovado') {
         quoteItems.forEach(item => {
           // Não mexe no item que acabamos de aprovar
-          if (item.id === itemId) return; 
-          
+          if (item.id === itemId) return;
+
           // Encontra o índice do "outro" item nos dados globais
           const otherItemIndex = appData.quoteItems.findIndex(i => i.id === item.id);
           if (otherItemIndex !== -1) {
             // Só rejeita se não estiver já Aprovado/Rejeitado
-            if (['Criado', 'Enviado', 'Respondido'].includes(appData.quoteItems[otherItemIndex].property_status)) {
+            if (['Criado', 'Enviado Fornecedor', 'Respondido'].includes(appData.quoteItems[otherItemIndex].property_status)) {
               appData.quoteItems[otherItemIndex].property_status = 'Rejeitado';
             }
           }
         });
       }
-      
+
       // 4. Salvar no localStorage
       saveAppData(appData);
-      
+
       // 5. (TODO - Futuro) Enviar para o N8N (Update Item)
-      
+
       // 6. Re-renderizar
       init();
     }
-    
+
     /**
      * Lida com a finalização da cotação
      */
     function handleFinalizeQuote() {
       const { appData, quoteId } = pageState;
-      
+
       // 1. Encontrar a cotação
       const quoteIndex = appData.quotes.findIndex(q => q.id === quoteId);
       if (quoteIndex === -1) {
         showError("Erro: Cotação não encontrada.");
         return;
       }
-      
+
       // 2. Mudar status
       appData.quotes[quoteIndex].property_status = 'Finalizada';
-      
+
       // 3. Salvar
       saveAppData(appData);
-      
+
       // 4. (TODO - Futuro) Enviar para o N8N (Update Cotação)
-      
+
       // 5. Re-renderizar
       showFeedback("Cotação finalizada com sucesso!", "success");
       init();
     }
-    
+
     /**
      * Lida com o clique no botão "Copiar Texto"
      */
@@ -517,7 +519,7 @@
       }
 
       const text = getWhatsappText(quote, item);
-      
+
       try {
         // Usa a API de Clipboard moderna
         navigator.clipboard.writeText(text).then(() => {
@@ -579,19 +581,19 @@
         showError(`Fornecedor ${supplier.property_nome} não possui WhatsApp cadastrado.`);
         return;
       }
-      
+
       // 2. Limpar o número (remover +, espaços, (, ), -)
       const cleanPhone = phone.replace(/[\s\+\-\(\)]/g, '');
-      
+
       // 3. Gerar o texto
       const text = getWhatsappText(quote, item);
       const encodedText = encodeURIComponent(text);
-      
+
       // 4. Abrir o link
       const url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
       window.open(url, '_blank');
     }
-    
+
     /**
      * Renderiza uma mensagem de erro na página
      */
@@ -620,4 +622,5 @@
   </script>
 
 </body>
+
 </html>

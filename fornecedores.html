@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Fornecedores - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
-    
+
     <!-- Sidebar (será preenchida pelo app.js) -->
     <div id="sidebar-container"></div>
 
@@ -25,7 +27,7 @@
 
       <!-- Container para Alertas -->
       <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
-      
+
       <!-- Container do Modal (inicialmente oculto) -->
       <div id="modal-container" class="hidden"></div>
 
@@ -33,7 +35,7 @@
       <div id="suppliers-list-container">
         <!-- O Spinner de carregamento ou a lista de fornecedores serão injetados aqui -->
       </div>
-      
+
     </main>
   </div>
 
@@ -46,11 +48,17 @@
     import {
       checkAuth,
       getAppData,
+      saveAppData,
       renderSidebarNav,
       renderFooter,
       renderLoading,
       renderScreenHeader,
       showError,
+      showFeedback,
+      showConfirmationModal,
+      getItemById,
+      getQuoteById,
+      getProductName,
       COLORS
     } from './app.js';
 
@@ -75,30 +83,44 @@
         showError("Falha ao carregar dados. Tente fazer login novamente.");
         return;
       }
-      
+
       // 3. Pega os fornecedores
-      pageState.suppliers = [...pageState.appData.suppliers].sort((a, b) => 
+      pageState.suppliers = [...pageState.appData.suppliers].sort((a, b) =>
         a.property_nome.localeCompare(b.property_nome)
       );
 
       // 4. Renderiza componentes estáticos
       renderSidebarNav('fornecedores'); // Marca 'Fornecedores' como ativo
       renderFooter();
-      renderScreenHeader("Fornecedores", "Consulte os fornecedores cadastrados.");
-      
+      renderScreenHeader("Fornecedores", "Consulte os fornecedores cadastrados e envie cotações pendentes.");
+
       // 5. Renderiza a lista de fornecedores
       renderSuppliersTable();
     }
-    
+
+    /**
+     * Obtém itens pendentes (Status 'Criado') para um fornecedor
+     */
+    function getPendingItemsForSupplier(supplierId) {
+      const { appData } = pageState;
+      if (!appData.quoteItems) return [];
+
+      return appData.quoteItems.filter(item =>
+        item.property_fornecedor &&
+        item.property_fornecedor.includes(supplierId) &&
+        item.property_status === 'Criado'
+      );
+    }
+
     /**
      * Renderiza a tabela de fornecedores
      */
     function renderSuppliersTable() {
       const container = document.getElementById('suppliers-list-container');
       if (!container) return;
-      
+
       renderLoading(container, "A carregar fornecedores...");
-      
+
       const { suppliers } = pageState;
 
       // Simula um pequeno atraso para o spinner ser visível
@@ -119,17 +141,32 @@
             .filter(ps => ps.property_fornecedor && ps.property_fornecedor.includes(supplier.id))
             .length;
 
+          // Itens pendentes para envio
+          const pendingItems = getPendingItemsForSupplier(supplier.id);
+          const hasPending = pendingItems.length > 0;
+
           return `
             <tr>
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-gray-900">${supplier.property_nome}</div>
+                ${hasPending ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mt-1">${pendingItems.length} pendente(s)</span>` : ''}
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${productCount} produtos vinculados</td>
-              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                ${hasPending ? `
+                  <button 
+                    class="batch-send-btn px-3 py-1 rounded-md text-white transition-colors hover:opacity-90"
+                    style="background-color: #25D366;"
+                    data-supplier-id="${supplier.id}"
+                    title="Enviar ${pendingItems.length} itens pendentes via WhatsApp"
+                  >
+                    Enviar Pendências (${pendingItems.length})
+                  </button>
+                ` : ''}
                 <a 
                   href="${supplier.url}" 
                   target="_blank" 
-                  class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 transition-colors hover:bg-gray-300"
+                  class="px-3 py-1 rounded-md bg-gray-200 text-gray-700 transition-colors hover:bg-gray-300 inline-block"
                   title="Abrir no Notion"
                 >
                   Abrir no Notion
@@ -138,7 +175,7 @@
             </tr>
           `;
         }).join('');
-        
+
         // Renderiza a Tabela
         container.innerHTML = `
           <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-hidden">
@@ -156,8 +193,121 @@
             </table>
           </div>
         `;
-        
+
+        // Adiciona Listeners
+        document.querySelectorAll('.batch-send-btn').forEach(btn => {
+          btn.addEventListener('click', handleBatchSend);
+        });
+
       }, 100);
+    }
+
+    /**
+     * Lida com o envio em massa
+     */
+    function handleBatchSend(event) {
+      const supplierId = event.currentTarget.dataset.supplierId;
+      const supplier = pageState.suppliers.find(s => s.id === supplierId);
+
+      if (!supplier) {
+        showError("Fornecedor não encontrado.");
+        return;
+      }
+
+      const pendingItems = getPendingItemsForSupplier(supplierId);
+      if (pendingItems.length === 0) {
+        showError("Não há itens pendentes para este fornecedor.");
+        return;
+      }
+
+      // 1. Verifica telefone
+      const phone = supplier.property_whats_app;
+      if (!phone) {
+        showError(`Fornecedor ${supplier.property_nome} não possui WhatsApp cadastrado.`);
+        return;
+      }
+      const cleanPhone = phone.replace(/[\s\+\-\(\)]/g, '');
+
+      // 2. Agrupa itens por Cotação
+      const itemsByQuote = {};
+      pendingItems.forEach(item => {
+        // Tenta encontrar a propriedade correta (pode variar dependendo do N8N)
+        const quoteIdList = item.property_cota_o || item.property_cotacao;
+        const quoteId = (quoteIdList && quoteIdList.length > 0) ? quoteIdList[0] : 'unknown';
+
+        if (!itemsByQuote[quoteId]) {
+          itemsByQuote[quoteId] = [];
+        }
+        itemsByQuote[quoteId].push(item);
+      });
+
+      // 3. Gera a mensagem
+      let text = `Olá, ${supplier.property_nome}!\n`;
+      text += `Gostaria de solicitar cotação para:\n\n`;
+
+      Object.keys(itemsByQuote).forEach(quoteId => {
+        const quote = getQuoteById(quoteId);
+        const quoteName = quote ? quote.property_nome : '(Cotação sem ref)';
+
+        itemsByQuote[quoteId].forEach(item => {
+          let itemDescription = '';
+
+          if (quote) {
+            const productName = getProductName(quote.property_produto[0]);
+            const quantidade = quote.property_quantidade || '?';
+            const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
+
+            // Novo Formato:
+            // 📦 *Produto*
+            // Qtd: 10 Unidade
+            // (Ref: COT-001)
+            itemDescription = `📦 *${productName}*\nQtd: ${quantidade} ${unidade}\n(Ref: ${quoteName})`;
+          } else {
+            // Se não achou a cotação, tenta mostrar algo útil do item se possível
+            console.warn('Item sem cotação pai encontrada:', item);
+          }
+
+          text += `- ${itemDescription}\n`;
+        });
+        text += `\n`;
+      });
+
+      text += `Aguardo retorno. Obrigado!`;
+
+      // 4. Abre WhatsApp
+      const encodedText = encodeURIComponent(text);
+      const url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
+      window.open(url, '_blank');
+
+      // 5. Pergunta se deseja marcar como enviado
+      showConfirmationModal({
+        title: "Confirmar Envio",
+        messageHtml: `
+          <p>Você enviou ${pendingItems.length} itens para o WhatsApp de <strong>${supplier.property_nome}</strong>.</p>
+          <p class="mt-2 text-sm text-gray-600">Deseja marcar esses itens como <strong>"Enviado"</strong> no sistema?</p>
+        `,
+        confirmText: "Sim, marcar como Enviado",
+        cancelText: "Não, manter como Criado",
+        asyncAction: async () => {
+          // Atualiza status localmente
+          const { appData } = pageState;
+          let updatedCount = 0;
+
+          pendingItems.forEach(pendingItem => {
+            const itemIndex = appData.quoteItems.findIndex(i => i.id === pendingItem.id);
+            if (itemIndex !== -1) {
+              appData.quoteItems[itemIndex].property_status = 'Enviado Fornecedor'; // Atualizado para o status correto do Notion
+              updatedCount++;
+            }
+          });
+
+          saveAppData(appData);
+          showFeedback(`${updatedCount} itens marcados como Enviado!`, 'success');
+
+          // Re-renderiza a tabela
+          renderSuppliersTable();
+        }
+      });
     }
 
     // --- Inicialização ---
@@ -166,4 +316,5 @@
   </script>
 
 </body>
+
 </html>
