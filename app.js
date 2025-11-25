@@ -430,40 +430,74 @@ function renderSidebarNav(activePage = 'estoque') {
           Curral<span style="color: ${COLORS.black};">Burguer</span>
         </h1>
       </div>
-      <nav class="space-y-2">
-        ${menuItems.map(item => `
-          <a
-            href="${item.href}"
-            class="${baseClass} ${item.slug === activePage ? activeClass : inactiveClass}"
-            ${item.slug === activePage ? `style="background-color: ${COLORS.orange};"` : ''}
-          >
-            <svg class="h-5 w-5 mr-3 flex-shrink-0 ${item.slug === activePage ? 'text-white' : 'text-gray-500'}" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${item.icon}"></path>
-            </svg>
-            ${item.name}
-          </a>
-        `).join('')}
-      </nav>
-      <!-- Logout Button -->
-      <div class="mt-auto pt-6"> <!-- Adiciona padding superior para separar -->
-        <button id="logout-button" class="${baseClass} ${inactiveClass} w-full">
-          <svg class="h-5 w-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
-          Sair
-        </button>
-      </div>
+      <nav class="flex-1 px-4 py-6 space-y-2">
+      <a href="estoque.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'estoque' ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+        Estoque
+      </a>
+      <a href="produtos.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'produtos' ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+        Produtos
+      </a>
+      <a href="cotacoes.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'cotacoes' ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+        Cotações
+      </a>
+      <a href="fornecedores.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'fornecedores' ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+        Fornecedores
+      </a>
+      
+      <!-- Botão Atualizar Dados -->
+      <button id="refresh-data-btn" class="w-full flex items-center px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors text-left">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        Atualizar Dados
+      </button>
+
+      <button id="logout-btn" class="w-full flex items-center px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors text-left mt-auto">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+        Sair
+      </button>
+    </nav>
     </aside>
   `;
 
   // Adiciona o evento de clique ao botão de logout
-  const logoutButton = document.getElementById('logout-button');
-  if (logoutButton) {
-    logoutButton.addEventListener('click', () => {
-      clearAppData(); // Usa a função de logout correta
-      window.location.href = 'login.html'; // Redireciona
-    });
-  } else {
-    console.error("Botão de logout não encontrado.");
-  }
+  setTimeout(() => {
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => {
+        clearAppData();
+        window.location.href = 'login.html';
+      });
+    }
+
+    // Adiciona listener para Atualizar Dados
+    const refreshBtn = document.getElementById('refresh-data-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', async () => {
+        const originalText = refreshBtn.innerHTML;
+        refreshBtn.innerHTML = `
+          <svg class="animate-spin h-5 w-5 mr-3 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Atualizando...
+        `;
+        refreshBtn.disabled = true;
+
+        try {
+          await loadInitialData();
+          showFeedback("Dados atualizados com sucesso!", "success");
+          setTimeout(() => window.location.reload(), 1000); // Recarrega a página para refletir mudanças
+        } catch (error) {
+          showError("Erro ao atualizar dados: " + error.message);
+          refreshBtn.innerHTML = originalText;
+          refreshBtn.disabled = false;
+        }
+      });
+    }
+  }, 0);
 }
 
 /**
@@ -671,6 +705,48 @@ function formatDate(dateInput) {
   }
 }
 
+/**
+ * Carrega todos os dados iniciais do N8N
+ * (Usado no Login e no botão Atualizar Dados)
+ */
+async function loadInitialData() {
+  try {
+    const [
+      productsData,
+      suppliersData,
+      productSuppliersData,
+      quotesData,
+      quoteItemsData,
+      stockHistoryData
+    ] = await Promise.all([
+      fetchApi(N8N_URLS.loadProducts),
+      fetchApi(N8N_URLS.loadSuppliers),
+      fetchApi(N8N_URLS.loadProductSuppliers),
+      fetchApi(N8N_URLS.loadQuotes),
+      fetchApi(N8N_URLS.loadQuoteItems),
+      fetchApi(N8N_URLS.loadStockHistory)
+    ]);
+
+    // Estrutura os dados
+    const appData = {
+      products: productsData,
+      suppliers: suppliersData,
+      productSuppliers: productSuppliersData,
+      quotes: quotesData,
+      quoteItems: quoteItemsData,
+      stockHistory: stockHistoryData
+    };
+
+    // Salva tudo no localStorage
+    saveAppData(appData);
+    return true;
+
+  } catch (error) {
+    console.error("Erro ao carregar dados iniciais:", error);
+    throw new Error(`Falha ao carregar dados do N8N: ${error.message}`);
+  }
+}
+
 // --- 8. EXPORTAÇÕES ---
 // Exporta tudo o que as páginas individuais precisam
 export {
@@ -684,6 +760,7 @@ export {
   loginApi, // Exporta a função de login
   updateQuoteItemApi, // Exporta atualização de item
   finalizeQuoteApi, // Exporta finalização de cotação
+  loadInitialData, // <-- NOVA EXPORTAÇÃO
   // Dados
   saveAppData,
   saveSession, // Exporta a função de sessão

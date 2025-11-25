@@ -116,52 +116,15 @@
       }
     }
 
-    /**
-     * Carrega todos os dados iniciais do N8N
-     */
-    async function loadInitialData() {
-      try {
-        // setLoading(true); // Removido pois já é controlado pelo handleLogin
-
-        const [
-          productsData,
-          suppliersData,
-          productSuppliersData,
-          quotesData,
-          quoteItemsData,
-          stockHistoryData
-        ] = await Promise.all([
-          fetchApi(N8N_URLS.loadProducts),
-          fetchApi(N8N_URLS.loadSuppliers),
-          fetchApi(N8N_URLS.loadProductSuppliers),
-          fetchApi(N8N_URLS.loadQuotes),
-          fetchApi(N8N_URLS.loadQuoteItems),
-          fetchApi(N8N_URLS.loadStockHistory)
-        ]);
-
-        // Estrutura os dados
-        const appData = {
-          products: productsData,
-          suppliers: suppliersData,
-          productSuppliers: productSuppliersData,
-          quotes: quotesData,
-          quoteItems: quoteItemsData,
-          stockHistory: stockHistoryData
-        };
-
-        // Salva tudo no localStorage
-        saveAppData(appData);
-
-      } catch (error) {
-        console.error("Erro ao carregar dados iniciais:", error);
-        // Exibe o erro para o usuário
-        showError(`Falha ao carregar dados do N8N: ${error.message}`);
-        // Interrompe o processo de login
-        throw new Error("Falha no carregamento de dados.");
-      } finally {
-        setLoading(false);
-      }
-    }
+    import {
+      N8N_URLS,
+      fetchApi,
+      saveAppData,
+      saveSession, // Importa saveSession
+      showError,
+      loginApi,
+      loadInitialData // <-- Importa função centralizada
+    } from './app.js';
 
     /**
      * Lida com a submissão do formulário de login

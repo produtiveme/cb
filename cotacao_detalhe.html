@@ -470,6 +470,15 @@
         return;
       }
 
+      // Validação: Preço Obrigatório para Aprovar
+      if (newStatus === 'Aprovado') {
+        const price = appData.quoteItems[itemIndex].property_preco;
+        if (!price || price <= 0) {
+          showError("Para aprovar este item, é necessário informar o PREÇO (R$).");
+          return;
+        }
+      }
+
       // 2. Atualizar o item principal
       appData.quoteItems[itemIndex].property_status = newStatus;
 
