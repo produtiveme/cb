@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Produtos - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
-    
+
     <!-- Sidebar (será preenchida pelo app.js) -->
     <div id="sidebar-container"></div>
 
@@ -25,7 +27,7 @@
 
       <!-- Container para Alertas -->
       <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
-      
+
       <!-- Container do Modal (inicialmente oculto) -->
       <div id="modal-container" class="hidden"></div>
 
@@ -33,7 +35,7 @@
       <div id="products-list-container">
         <!-- O Spinner de carregamento ou a lista de produtos serão injetados aqui -->
       </div>
-      
+
     </main>
   </div>
 
@@ -81,9 +83,9 @@
         showError("Falha ao carregar dados. Tente fazer login novamente.");
         return;
       }
-      
+
       // 3. Pega os produtos
-      pageState.products = [...pageState.appData.products].sort((a, b) => 
+      pageState.products = [...pageState.appData.products].sort((a, b) =>
         a.property_nome.localeCompare(b.property_nome)
       );
 
@@ -91,20 +93,20 @@
       renderSidebarNav('produtos'); // Marca 'Produtos' como ativo
       renderFooter();
       renderScreenHeader("Produtos", "Consulte todos os produtos cadastrados.");
-      
+
       // 5. Renderiza a lista de produtos
       renderProdutosTable();
     }
-    
+
     /**
      * Renderiza a tabela de produtos
      */
     function renderProdutosTable() {
       const container = document.getElementById('products-list-container');
       if (!container) return;
-      
+
       renderLoading(container, "A carregar produtos...");
-      
+
       const { products } = pageState;
 
       // Simula um pequeno atraso para o spinner ser visível
@@ -124,7 +126,7 @@
           const statusBadge = status === 'Ativo'
             ? `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">${status}</span>`
             : `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">${status}</span>`;
-            
+
           const categoria = (product.property_categoria && product.property_categoria[0]) || 'N/A';
           const unidade = product.property_unidade_de_medida || 'N/A';
 
@@ -163,7 +165,7 @@
             </tr>
           `;
         }).join('');
-        
+
         // Renderiza a Tabela
         container.innerHTML = `
           <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-hidden">
@@ -183,13 +185,13 @@
             </table>
           </div>
         `;
-        
+
         // Adiciona listeners de eventos
         addEventListeners();
-        
+
       }, 100);
     }
-    
+
     /**
      * Adiciona os listeners de clique aos botões "Cotar"
      */
@@ -207,13 +209,26 @@
     async function handleCreateQuote(event) {
       const productId = event.target.dataset.productId;
       const { appData } = pageState;
-      
+
       const product = getProductById(productId);
       if (!product) {
         showError("Produto não encontrado.");
         return;
       }
-      
+
+      // 0. Regra de Negócio: Cotação Única (RN-003)
+      // Verifica se já existe uma cotação em aberto para este produto
+      const openQuote = appData.quotes.find(q =>
+        q.property_produto &&
+        q.property_produto.includes(productId) &&
+        !['Concluído', 'Finalizada'].includes(q.property_status)
+      );
+
+      if (openQuote) {
+        showError(`Já existe uma cotação em aberto (${openQuote.property_nome}) para este produto. Finalize-a antes de criar uma nova.`);
+        return;
+      }
+
       // Encontra fornecedores únicos para este produto
       const fornecedorIds = appData.productSuppliers
         .filter(ps => ps.property_produto && ps.property_produto.includes(productId))
@@ -225,7 +240,7 @@
         showError("Produto sem fornecedores cadastrados. Cotação não pode ser criada.");
         return;
       }
-      
+
       // 2. Confirmação (RN-001)
       const messageHtml = `
         <p>Tem a certeza que quer gerar uma nova cotação para o produto <strong>${product.property_nome}</strong>?</p>
@@ -248,7 +263,7 @@
           >
         </div>
       `;
-      
+
       showConfirmationModal({
         title: "Confirmar Criação de Cotação",
         messageHtml: messageHtml,
@@ -256,7 +271,7 @@
         cancelText: "Cancelar",
         asyncAction: async () => {
           // Esta função é chamada quando o usuário clica em "Confirmar"
-          
+
           const quantidadeInput = document.getElementById('quote-quantity');
           const quantidade = parseFloat(quantidadeInput.value);
 
@@ -264,11 +279,11 @@
             // Usa o throw para o modal mostrar o erro sem fechar
             throw new Error("A quantidade deve ser maior que zero.");
           }
-          
+
           // 3. Gerar a Cotação e os Itens (RN-002)
           const newQuoteId = crypto.randomUUID();
           const nextQuoteNumber = (appData.quotes.length + 1).toString().padStart(3, '0');
-          
+
           const newQuote = {
             id: newQuoteId,
             property_nome: `COT-${nextQuoteNumber}`,
@@ -283,7 +298,7 @@
           for (const [index, supplierId] of fornecedorIds.entries()) {
             const newItemId = crypto.randomUUID();
             const newItemNumber = (appData.quoteItems.length + index + 1).toString().padStart(3, '0');
-            
+
             newItems.push({
               id: newItemId,
               property_nome: newItemNumber,
@@ -292,10 +307,10 @@
               property_cota_o: [newQuoteId],
               property_preco: 0
             });
-            
+
             newQuote.property_item.push(newItemId); // Adiciona ID do item à cotação
           }
-          
+
           // 4. Construir Payload para o N8N
           const payload = {
             cotacao: {
@@ -314,29 +329,29 @@
               id_local: item.id // Envia ID local
             }))
           };
-          
+
           try {
             // 5. Enviar para o N8N (o modal mostra o spinner)
             // TODO: Processar a resposta do N8N para atualizar os IDs locais com os IDs reais do Notion
             await postApi(N8N_URLS.createQuote, payload);
-            
+
             // 6. Salvar localmente (se o N8N deu sucesso)
             const updatedData = getAppData(); // Pega os dados mais recentes
             updatedData.quotes.push(newQuote);
             updatedData.quoteItems.push(...newItems);
             saveAppData(updatedData);
-            
+
             // 7. Redirecionar
             showFeedback("Cotação criada com sucesso!", "success");
             window.location.href = `cotacao_detalhe.html?id=${newQuoteId}`;
-            
+
           } catch (n8nError) {
-             // Se o postApi falhar, o modal (showConfirmationModal) vai apanhar o erro
-             // e mostrá-lo ao usuário sem fechar.
-             // Apenas registamos no console.
-             console.error("Falha ao criar cotação no N8N:", n8nError);
-             // Re-lança o erro para o modal o apanhar
-             throw n8nError;
+            // Se o postApi falhar, o modal (showConfirmationModal) vai apanhar o erro
+            // e mostrá-lo ao usuário sem fechar.
+            // Apenas registamos no console.
+            console.error("Falha ao criar cotação no N8N:", n8nError);
+            // Re-lança o erro para o modal o apanhar
+            throw n8nError;
           }
         }
       });
@@ -348,4 +363,5 @@
   </script>
 
 </body>
+
 </html>

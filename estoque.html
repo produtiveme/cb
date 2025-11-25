@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Estoque - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
-    
+
     <!-- Sidebar (será preenchida pelo app.js) -->
     <div id="sidebar-container"></div>
 
@@ -25,7 +27,7 @@
 
       <!-- Container para Alertas -->
       <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
-      
+
       <!-- Container do Modal (inicialmente oculto) -->
       <div id="modal-container" class="hidden"></div>
 
@@ -36,7 +38,7 @@
       <div id="stock-table-container">
         <!-- O Spinner de carregamento ou a tabela serão injetados aqui -->
       </div>
-      
+
     </main>
   </div>
 
@@ -97,11 +99,11 @@
       renderSidebarNav('estoque'); // Marca 'Estoque' como ativo
       renderFooter();
       renderScreenHeader("Controlo de Estoque", "Visualize e filtre os produtos.");
-      
+
       // 5. Renderiza componentes dinâmicos (filtros e tabela)
       renderFilters();
       renderStockTable();
-      
+
       // 6. Adiciona listeners de eventos (só depois que os filtros existirem)
       addEventListeners();
     }
@@ -188,7 +190,7 @@
           </div>
         </div>
       `;
-      
+
       // Define os valores selecionados nos dropdowns
       document.getElementById('filter-category').value = pageState.filters.category;
       document.getElementById('filter-status').value = pageState.filters.status;
@@ -227,7 +229,7 @@
     function renderStockTable() {
       const container = document.getElementById('stock-table-container');
       if (!container) return;
-      
+
       renderLoading(container); // Mostra o spinner
 
       const { products } = pageState.appData;
@@ -237,16 +239,16 @@
       const filteredProducts = products.filter(product => {
         const fName = name.toLowerCase();
         const pName = (product.property_nome || '').toLowerCase();
-        
+
         const matchName = pName.includes(fName);
-        
-        const matchCategory = category === 'all' || 
+
+        const matchCategory = category === 'all' ||
           (product.property_categoria && product.property_categoria.includes(category));
-          
-        const matchStatus = status === 'all' || 
+
+        const matchStatus = status === 'all' ||
           (product.property_situa_o_do_produto === status);
 
-        const matchStockLow = !stockLow || 
+        const matchStockLow = !stockLow ||
           (product.property_alerta_de_estoque === true); // property_alerta_de_estoque é o "Estoque Baixo"
 
         return matchName && matchCategory && matchStatus && matchStockLow;
@@ -294,9 +296,9 @@
     function renderRow(product) {
       const estoqueAtual = product.property_estoque_atual || 0;
       const estoqueMinimo = product.property_estoque_m_nimo || 0;
-      
+
       const isLowStock = product.property_alerta_de_estoque === true;
-      
+
       // Define a cor do texto do estoque
       let stockColorClass = 'text-gray-900';
       if (isLowStock) {
@@ -364,10 +366,23 @@
      */
     async function handleCreateQuote(productId) {
       const { appData } = pageState;
-      
+
       const product = getProductById(productId);
       if (!product) {
         showError("Produto não encontrado.");
+        return;
+      }
+
+      // 0. Regra de Negócio: Cotação Única (RN-003)
+      // Verifica se já existe uma cotação em aberto para este produto
+      const openQuote = appData.quotes.find(q =>
+        q.property_produto &&
+        q.property_produto.includes(productId) &&
+        !['Concluído', 'Finalizada'].includes(q.property_status)
+      );
+
+      if (openQuote) {
+        showError(`Já existe uma cotação em aberto (${openQuote.property_nome}) para este produto. Finalize-a antes de criar uma nova.`);
         return;
       }
 
@@ -375,7 +390,7 @@
       const productSuppliers = appData.productSuppliers.filter(
         ps => ps.property_produto.includes(productId)
       );
-      
+
       const supplierIds = productSuppliers.map(ps => ps.property_fornecedor[0]);
       const uniqueSupplierIds = [...new Set(supplierIds)];
 
@@ -422,7 +437,7 @@
         cancelText: "Cancelar",
         asyncAction: async () => {
           // Esta função é executada quando o usuário clica em "Confirmar"
-          
+
           // 4. Validar e obter a quantidade
           const quantityInput = document.getElementById('quote-quantity');
           const quantityError = document.getElementById('quote-quantity-error');
@@ -432,27 +447,27 @@
             quantityInput.classList.add('border-red-500'); // Adiciona borda vermelha
             if (quantityError) quantityError.classList.remove('hidden'); // Mostra erro
             // Lança um erro para impedir o modal de fechar
-            throw new Error("A quantidade deve ser um número maior que zero."); 
+            throw new Error("A quantidade deve ser um número maior que zero.");
           }
-          
+
           // Se a validação passar, remove o erro (caso exista)
           quantityInput.classList.remove('border-red-500');
           if (quantityError) quantityError.classList.add('hidden');
-          
+
           // 5. Gerar a nova cotação e itens (localmente)
-          const lastQuote = appData.quotes.length > 0 ? 
-              appData.quotes.reduce((a, b) => {
-                  const numA = parseInt(a.property_nome.split('-')[1]);
-                  const numB = parseInt(b.property_nome.split('-')[1]);
-                  return numA > numB ? a : b;
-              }) : { property_nome: 'COT-0' };
+          const lastQuote = appData.quotes.length > 0 ?
+            appData.quotes.reduce((a, b) => {
+              const numA = parseInt(a.property_nome.split('-')[1]);
+              const numB = parseInt(b.property_nome.split('-')[1]);
+              return numA > numB ? a : b;
+            }) : { property_nome: 'COT-0' };
 
           const lastQuoteNum = parseInt(lastQuote.property_nome.split('-')[1]);
           const newQuoteNum = (lastQuoteNum + 1).toString().padStart(3, '0');
           const newQuoteName = `COT-${newQuoteNum}`;
 
           const newQuoteId = crypto.randomUUID();
-          
+
           const newQuote = {
             id: newQuoteId,
             property_nome: newQuoteName,
@@ -465,14 +480,14 @@
           };
 
           const newItems = [];
-          
+
           let lastItemNum = appData.quoteItems.length > 0 ?
-                appData.quoteItems.reduce((a, b) => {
-                  const numA = parseInt(a.property_nome);
-                  const numB = parseInt(b.property_nome);
-                  return (numA || 0) > (numB || 0) ? a : b;
-                }) : { property_nome: '0' };
-          
+            appData.quoteItems.reduce((a, b) => {
+              const numA = parseInt(a.property_nome);
+              const numB = parseInt(b.property_nome);
+              return (numA || 0) > (numB || 0) ? a : b;
+            }) : { property_nome: '0' };
+
           let currentItemNum = parseInt(lastItemNum.property_nome || '0');
 
           for (const supplierId of uniqueSupplierIds) {
@@ -487,11 +502,11 @@
               property_preco: 0,
               url: "#"
             };
-            
+
             newItems.push(newItem);
             newQuote.property_item.push(newItemId); // Liga o item à cotação
           }
-          
+
           // 6. Preparar Payload para o N8N
           const payload = {
             cotacao: {
@@ -533,4 +548,5 @@
   </script>
 
 </body>
+
 </html>

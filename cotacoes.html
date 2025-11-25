@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cotações - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
-    
+
     <!-- Sidebar (será preenchida pelo app.js) -->
     <div id="sidebar-container"></div>
 
@@ -25,15 +27,61 @@
 
       <!-- Container para Alertas -->
       <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
-      
+
       <!-- Container do Modal (inicialmente oculto) -->
       <div id="modal-container" class="hidden"></div>
+
+      <!-- Filtros -->
+      <div class="bg-white p-4 rounded-lg shadow border border-gray-200 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Busca por Nome -->
+          <div>
+            <label for="filter-search" class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
+            <input type="text" id="filter-search" placeholder="Nome da cotação..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+          </div>
+
+          <!-- Filtro por Produto -->
+          <div>
+            <label for="filter-product" class="block text-sm font-medium text-gray-700 mb-1">Produto</label>
+            <select id="filter-product"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">Todos os Produtos</option>
+              <!-- Opções injetadas via JS -->
+            </select>
+          </div>
+
+          <!-- Filtro por Status -->
+          <div>
+            <label for="filter-status" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select id="filter-status"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">Todos os Status</option>
+              <option value="Aguardando">Aguardando</option>
+              <option value="Rascunho">Rascunho</option>
+              <option value="Criado">Criado</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Finalizada">Finalizada</option>
+            </select>
+          </div>
+
+          <!-- Filtro por Fornecedor -->
+          <div>
+            <label for="filter-supplier" class="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
+            <select id="filter-supplier"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500">
+              <option value="">Todos os Fornecedores</option>
+              <!-- Opções injetadas via JS -->
+            </select>
+          </div>
+        </div>
+      </div>
 
       <!-- Conteúdo da Página (será preenchido pelo JS) -->
       <div id="quotes-list-container">
         <!-- O Spinner de carregamento ou a lista de cotações serão injetados aqui -->
       </div>
-      
+
     </main>
   </div>
 
@@ -58,7 +106,13 @@
     // --- Estado da Página ---
     const pageState = {
       appData: null,
-      quotes: []
+      quotes: [],
+      filters: {
+        search: '',
+        productId: '',
+        status: '',
+        supplierId: ''
+      }
     };
 
     // --- Funções Principais ---
@@ -76,65 +130,194 @@
         showError("Falha ao carregar dados. Tente fazer login novamente.");
         return;
       }
-      
-      // 3. Pega as cotações
-      // Ordena da mais nova para a mais antiga (pelo nome COT-XXX)
-      pageState.quotes = [...pageState.appData.quotes].sort((a, b) => {
-         const numA = parseInt(a.property_nome.split('-')[1] || 0);
-         const numB = parseInt(b.property_nome.split('-')[1] || 0);
-         return numB - numA; // Ordem descendente
-      });
+
+      // 3. Pega as cotações iniciais
+      pageState.quotes = [...pageState.appData.quotes];
 
       // 4. Renderiza componentes estáticos
       renderSidebarNav('cotacoes'); // Marca 'Cotações' como ativo
       renderFooter();
       renderScreenHeader("Cotações", "Gerencie cotações existentes.");
-      
-      // 5. Renderiza a lista de cotações
-      renderCotacaoListScreen();
+
+      // 5. Inicializa Filtros
+      initFilters();
+
+      // 6. Renderiza a lista de cotações (já aplicando filtros iniciais/ordenação)
+      filterAndRenderQuotes();
     }
-    
+
+    /**
+     * Inicializa os controles de filtro
+     */
+    function initFilters() {
+      const { appData } = pageState;
+
+      // Popula Select de Produtos
+      const productSelect = document.getElementById('filter-product');
+      const sortedProducts = [...appData.products].sort((a, b) => a.property_nome.localeCompare(b.property_nome));
+      sortedProducts.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.id;
+        option.textContent = p.property_nome;
+        productSelect.appendChild(option);
+      });
+
+      // Popula Select de Fornecedores
+      const supplierSelect = document.getElementById('filter-supplier');
+      const sortedSuppliers = [...appData.suppliers].sort((a, b) => a.property_nome.localeCompare(b.property_nome));
+      sortedSuppliers.forEach(s => {
+        const option = document.createElement('option');
+        option.value = s.id;
+        option.textContent = s.property_nome;
+        supplierSelect.appendChild(option);
+      });
+
+      // Adiciona Listeners
+      document.getElementById('filter-search').addEventListener('input', (e) => {
+        pageState.filters.search = e.target.value.toLowerCase();
+        filterAndRenderQuotes();
+      });
+
+      document.getElementById('filter-product').addEventListener('change', (e) => {
+        pageState.filters.productId = e.target.value;
+        filterAndRenderQuotes();
+      });
+
+      document.getElementById('filter-status').addEventListener('change', (e) => {
+        pageState.filters.status = e.target.value;
+        filterAndRenderQuotes();
+      });
+
+      document.getElementById('filter-supplier').addEventListener('change', (e) => {
+        pageState.filters.supplierId = e.target.value;
+        filterAndRenderQuotes();
+      });
+    }
+
+    /**
+     * Filtra, Ordena e Renderiza as Cotações
+     */
+    function filterAndRenderQuotes() {
+      const { appData, filters } = pageState;
+      let filteredQuotes = [...appData.quotes];
+
+      // --- 1. Filtragem ---
+
+      // Nome
+      if (filters.search) {
+        filteredQuotes = filteredQuotes.filter(q =>
+          q.property_nome.toLowerCase().includes(filters.search)
+        );
+      }
+
+      // Produto
+      if (filters.productId) {
+        filteredQuotes = filteredQuotes.filter(q =>
+          q.property_produto && q.property_produto.includes(filters.productId)
+        );
+      }
+
+      // Status
+      if (filters.status) {
+        filteredQuotes = filteredQuotes.filter(q =>
+          q.property_status === filters.status
+        );
+      }
+
+      // Fornecedor (Complexo: precisa cruzar com itens)
+      if (filters.supplierId) {
+        // Encontra IDs das cotações que têm itens desse fornecedor
+        const quotesWithSupplier = new Set();
+        appData.quoteItems.forEach(item => {
+          if (item.property_fornecedor && item.property_fornecedor.includes(filters.supplierId)) {
+            // property_cota_o ou property_cotacao (dependendo do N8N)
+            const quoteIdList = item.property_cota_o || item.property_cotacao;
+            if (quoteIdList && quoteIdList.length > 0) {
+              quotesWithSupplier.add(quoteIdList[0]);
+            }
+          }
+        });
+
+        filteredQuotes = filteredQuotes.filter(q => quotesWithSupplier.has(q.id));
+      }
+
+      // --- 2. Ordenação ---
+
+      // Pesos para ordenação por status
+      const statusWeight = {
+        'Aguardando': 1,
+        'Rascunho': 2,
+        'Criado': 2,
+        'Respondido': 3,
+        'Concluído': 4,
+        'Finalizada': 4,
+        'Indefinido': 5
+      };
+
+      filteredQuotes.sort((a, b) => {
+        const statusA = a.property_status || 'Indefinido';
+        const statusB = b.property_status || 'Indefinido';
+
+        const weightA = statusWeight[statusA] || 5;
+        const weightB = statusWeight[statusB] || 5;
+
+        // 1º Critério: Status (Menor peso primeiro)
+        if (weightA !== weightB) {
+          return weightA - weightB;
+        }
+
+        // 2º Critério: Nome (Decrescente - mais novo primeiro se for COT-XXX)
+        const numA = parseInt(a.property_nome.split('-')[1] || 0);
+        const numB = parseInt(b.property_nome.split('-')[1] || 0);
+        return numB - numA;
+      });
+
+      // --- 3. Renderização ---
+      renderCotacaoListScreen(filteredQuotes);
+    }
+
     /**
      * Renderiza a lista de cotações
      */
-    function renderCotacaoListScreen() {
+    function renderCotacaoListScreen(quotesToRender) {
       const container = document.getElementById('quotes-list-container');
       if (!container) return;
-      
-      renderLoading(container, "A carregar cotações...");
-      
-      const { quotes } = pageState;
 
-      // Simula um pequeno atraso para o spinner ser visível
-      setTimeout(() => {
-        if (quotes.length === 0) {
-          container.innerHTML = `
-            <div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">
-              Nenhuma cotação encontrada. Comece por criar uma na página de Estoque ou Produtos.
-            </div>
-          `;
-          return;
-        }
+      // Se for a primeira carga (quotesToRender undefined), mostra loading
+      if (!quotesToRender && pageState.quotes.length === 0) {
+        renderLoading(container, "A carregar cotações...");
+        return;
+      }
 
-        // Constrói os Cards
+      const quotes = quotesToRender || pageState.quotes;
+
+      if (quotes.length === 0) {
         container.innerHTML = `
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            ${quotes.map(quote => renderQuoteCard(quote)).join('')}
+          <div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">
+            Nenhuma cotação encontrada com os filtros selecionados.
           </div>
         `;
-      }, 100);
+        return;
+      }
+
+      // Constrói os Cards
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          ${quotes.map(quote => renderQuoteCard(quote)).join('')}
+        </div>
+      `;
     }
-    
+
     /**
      * Renderiza um card de cotação individual
      */
     function renderQuoteCard(quote) {
       const productName = getProductName(quote.property_produto[0]);
       const status = quote.property_status || 'Indefinido';
-      
+
       let statusColor = 'bg-gray-200 text-gray-800'; // Padrão (Rascunho)
       let progressBarWidth = '25%'; // Rascunho
-      
+
       switch (status) {
         case 'Aguardando':
           statusColor = 'bg-yellow-100 text-yellow-800';
@@ -202,4 +385,5 @@
   </script>
 
 </body>
+
 </html>
