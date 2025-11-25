@@ -137,11 +137,11 @@
         // Se falhar, vai para o catch e mostra erro
         const loginData = await loginApi(username, password);
 
-        // 2. Se login OK, carrega os dados iniciais
-        await loadInitialData();
-
-        // 3. Salva a sessão (Token + Auth Flag)
+        // 2. Salva a sessão (Token + Auth Flag) - IMPORTANTE: Salvar ANTES de carregar dados
         saveSession(loginData.user);
+
+        // 3. Se login OK, carrega os dados iniciais (agora com o token salvo)
+        await loadInitialData();
 
         // 4. Redireciona
         window.location.href = 'estoque.html';

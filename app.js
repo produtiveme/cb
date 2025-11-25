@@ -34,14 +34,24 @@ const N8N_URLS = {
 // --- 2. UTILITÁRIOS DE API ---
 
 /**
- * Wrapper de Fetch para chamadas GET ao N8N
+ * Wrapper de Fetch para chamadas de LEITURA ao N8N (Agora via POST com Token)
  * @param {string} endpoint O caminho do endpoint (ex: /curral-burguer_carrega_produtos)
  * @returns {Promise<object>} Os dados da resposta em JSON
  */
 async function fetchApi(endpoint) {
   const url = `${N8N_URLS.BASE_URL}${endpoint}`;
+  const token = getToken();
+
   try {
-    const response = await fetch(url);
+    // Mudança para POST para enviar o token no corpo
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ token })
+    });
+
     if (!response.ok) {
       // Tenta ler a resposta de erro, se houver
       let errorBody = `Status: ${response.status}`;
@@ -58,17 +68,17 @@ async function fetchApi(endpoint) {
     // Verifica se a resposta está vazia antes de tentar fazer o parse
     const textResponse = await response.text();
     if (!textResponse) {
-      console.warn(`Resposta vazia recebida de [GET] ${url}`);
+      console.warn(`Resposta vazia recebida de [POST] ${url}`);
       return []; // Retorna array vazio ou null, dependendo do esperado
     }
     try {
       return JSON.parse(textResponse); // Tenta fazer o parse do texto como JSON
     } catch (e) {
-      console.error(`Falha ao fazer parse do JSON da resposta [GET] ${url}:`, textResponse);
+      console.error(`Falha ao fazer parse do JSON da resposta [POST] ${url}:`, textResponse);
       throw new Error(`Resposta inválida recebida do servidor.`);
     }
   } catch (error) {
-    console.error(`Falha na chamada API [GET] ${url}:`, error);
+    console.error(`Falha na chamada API [POST/READ] ${url}:`, error);
     // Remove a URL da mensagem de erro para o usuário final
     const userFriendlyMessage = error.message.includes('(URL:')
       ? error.message.split('(URL:')[0].trim()
@@ -78,20 +88,25 @@ async function fetchApi(endpoint) {
 }
 
 /**
- * Wrapper de Fetch para chamadas POST ao N8N
+ * Wrapper de Fetch para chamadas POST ao N8N (Escrita)
  * @param {string} endpoint O caminho do endpoint (ex: /curral-burguer_cria_cotacao)
  * @param {object} body O corpo (payload) da requisição em JSON
  * @returns {Promise<object>} A resposta em JSON
  */
 async function postApi(endpoint, body) {
   const url = `${N8N_URLS.BASE_URL}${endpoint}`;
+  const token = getToken();
+
+  // Injeta o token automaticamente no corpo
+  const payload = { ...body, token };
+
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(payload)
     });
 
     // Lê a resposta como texto primeiro para verificar se está vazia
@@ -181,13 +196,11 @@ function getToken() {
  * @param {object} data Dados a atualizar { price, status }
  */
 async function updateQuoteItemApi(itemId, data) {
-  const token = getToken();
-  // Garante que price seja enviado (0 se não existir) e status também
+  // O token é injetado automaticamente pelo postApi
   const payload = {
     id: itemId,
     price: data.price !== undefined ? data.price : 0,
-    status: data.status || 'Criado', // Fallback seguro
-    token: token
+    status: data.status || 'Criado' // Fallback seguro
   };
   return await postApi(N8N_URLS.updateQuoteItem, payload);
 }
@@ -198,11 +211,10 @@ async function updateQuoteItemApi(itemId, data) {
  * @param {string} status Novo status (ex: "Concluído")
  */
 async function finalizeQuoteApi(quoteId, status) {
-  const token = getToken();
+  // O token é injetado automaticamente pelo postApi
   const payload = {
     id: quoteId,
-    status: status,
-    token: token
+    status: status
   };
   return await postApi(N8N_URLS.finalizeQuote, payload);
 }
