@@ -74,9 +74,10 @@
       N8N_URLS,
       fetchApi,
       saveAppData,
-      saveSession, // Importa saveSession
+      saveSession,
       showError,
-      loginApi
+      loginApi,
+      loadInitialData // <-- Importado corretamente
     } from './app.js';
 
     // --- Elementos DOM ---
@@ -116,15 +117,7 @@
       }
     }
 
-    import {
-      N8N_URLS,
-      fetchApi,
-      saveAppData,
-      saveSession, // Importa saveSession
-      showError,
-      loginApi,
-      loadInitialData // <-- Importa função centralizada
-    } from './app.js';
+
 
     /**
      * Lida com a submissão do formulário de login
