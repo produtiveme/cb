@@ -339,8 +339,8 @@
               id="finalize-quote-btn"
               class="flex-1 px-4 py-3 rounded-md text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style="background-color: ${COLORS.orange};"
-              ${(quote.property_status !== 'Aguardando' || !allItemsProcessed) ? 'disabled' : ''}
-              title="${(quote.property_status !== 'Aguardando' || !allItemsProcessed) ? 'A cotação deve estar "Aguardando" e todos os itens devem estar "Respondido", "Aprovado" ou "Rejeitado" para finalizar.' : 'Finalizar Cotação'}"
+              ${(!allItemsProcessed || ['Concluído', 'Finalizada'].includes(quote.property_status)) ? 'disabled' : ''}
+              title="${(!allItemsProcessed) ? 'Todos os itens devem estar "Respondido", "Aprovado" ou "Rejeitado" para finalizar.' : 'Finalizar Cotação'}"
             >
               Finalizar Cotação
             </button>

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalhes do Fornecedor - Gestão de Cotação</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Estilo Global Centralizado -->
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="flex flex-col md:flex-row min-h-screen">
+
+        <!-- Sidebar (será preenchida pelo app.js) -->
+        <div id="sidebar-container"></div>
+
+        <!-- Conteúdo Principal -->
+        <main class="flex-1 p-6 md:p-10">
+
+            <!-- Cabeçalho (será preenchido pelo app.js) -->
+            <header id="header-container"></header>
+
+            <!-- Container para Alertas -->
+            <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
+
+            <!-- Conteúdo da Página (será preenchido pelo JS) -->
+            <div id="supplier-detail-container">
+                <!-- O Spinner de carregamento ou os detalhes serão injetados aqui -->
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Rodapé (será preenchido pelo app.js) -->
+    <div id="footer-container"></div>
+
+
+    <!-- Script da Página -->
+    <script type="module">
+        import {
+            checkAuth,
+            getAppData,
+            renderSidebarNav,
+            renderFooter,
+            renderScreenHeader,
+            showError,
+            getUrlParam,
+            getSupplierById,
+            getProductName,
+            COLORS
+        } from './app.js';
+
+        // --- Estado da Página ---
+        const pageState = {
+            appData: null,
+            supplierId: null,
+            supplier: null
+        };
+
+        // --- Funções Principais ---
+
+        /**
+         * Inicializa a página
+         */
+        function init() {
+            // 1. Verifica autenticação
+            if (!checkAuth()) return;
+
+            // 2. Carrega dados do localStorage
+            pageState.appData = getAppData();
+            if (!pageState.appData) {
+                showError("Falha ao carregar dados. Tente fazer login novamente.");
+                return;
+            }
+
+            // 3. Pega o ID do fornecedor da URL
+            pageState.supplierId = getUrlParam('id');
+            if (!pageState.supplierId) {
+                showError("ID do fornecedor não fornecido.");
+                renderPageError("Fornecedor não encontrado.");
+                return;
+            }
+
+            // 4. Encontra o fornecedor
+            pageState.supplier = getSupplierById(pageState.supplierId);
+            if (!pageState.supplier) {
+                showError("Fornecedor não encontrado.");
+                renderPageError(`Fornecedor com ID ${pageState.supplierId} não foi encontrado.`);
+                return;
+            }
+
+            // 5. Renderiza componentes estáticos
+            renderSidebarNav('fornecedores');
+            renderFooter();
+
+            // 6. Renderiza a tela de detalhes
+            renderSupplierDetailScreen();
+        }
+
+        /**
+         * Renderiza o layout principal da tela de detalhes
+         */
+        function renderSupplierDetailScreen() {
+            const { supplier } = pageState;
+            const container = document.getElementById('supplier-detail-container');
+            if (!container) return;
+
+            // --- Botões do Cabeçalho ---
+            const headerButtons = `
+        <div class="flex items-center space-x-2">
+          <a 
+            href="fornecedores.html" 
+            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-medium hover:bg-gray-300 transition text-sm"
+          >
+            &larr; Voltar
+          </a>
+          <a 
+            href="${supplier.url}" 
+            target="_blank" 
+            class="px-4 py-2 text-white rounded-md font-medium transition text-sm"
+            style="background-color: ${COLORS.blue};"
+            title="Abrir o registo original no Notion"
+          >
+            Abrir no Notion
+          </a>
+        </div>
+      `;
+
+            // --- Subtítulo do Cabeçalho ---
+            const statusColor = supplier.property_ativo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+            const statusText = supplier.property_ativo ? 'Ativo' : 'Inativo';
+
+            const subtitle = `
+        <span>Status: <span class="px-2 py-0.5 text-xs font-semibold rounded-full ${statusColor}">${statusText}</span></span>
+      `;
+
+            // Renderiza Cabeçalho
+            renderScreenHeader(
+                `Fornecedor: ${supplier.property_nome}`,
+                subtitle,
+                headerButtons
+            );
+
+            // --- Renderiza Cards de Informação ---
+            container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          
+          <!-- Card 1: Identificação -->
+          <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+            <h3 class="text-lg font-bold font-heading mb-4 border-b pb-2" style="color: ${COLORS.black};">Identificação</h3>
+            <div class="space-y-3 text-sm">
+              <div><span class="font-semibold text-gray-600">Razão Social:</span> <span class="text-gray-900">${supplier.property_raz_o_social || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">Nome Fantasia:</span> <span class="text-gray-900">${supplier.property_nome_fantasia || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">CNPJ:</span> <span class="text-gray-900">${supplier.property_cnpj || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">Inscrição Estadual:</span> <span class="text-gray-900">${supplier.property_inscri_o_estadual || '-'}</span></div>
+            </div>
+          </div>
+
+          <!-- Card 2: Contato -->
+          <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+            <h3 class="text-lg font-bold font-heading mb-4 border-b pb-2" style="color: ${COLORS.black};">Contato</h3>
+            <div class="space-y-3 text-sm">
+              <div><span class="font-semibold text-gray-600">Pessoa de Contato:</span> <span class="text-gray-900">${supplier.property_pessoa_de_contato || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">E-mail:</span> <a href="mailto:${supplier.property_e_mail_principal}" class="text-blue-600 hover:underline">${supplier.property_e_mail_principal || '-'}</a></div>
+              <div><span class="font-semibold text-gray-600">WhatsApp:</span> <span class="text-gray-900">${supplier.property_whats_app || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">Telefone Fixo:</span> <span class="text-gray-900">${supplier.property_telefone_fixo || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">Site:</span> <a href="${supplier.property_site}" target="_blank" class="text-blue-600 hover:underline">${supplier.property_site || '-'}</a></div>
+            </div>
+          </div>
+
+          <!-- Card 3: Endereço -->
+          <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+            <h3 class="text-lg font-bold font-heading mb-4 border-b pb-2" style="color: ${COLORS.black};">Endereço</h3>
+            <div class="space-y-3 text-sm">
+              <div><span class="font-semibold text-gray-600">Logradouro:</span> <span class="text-gray-900">${supplier.property_endere_o_rua || ''}, ${supplier.property_endere_o_n_mero || ''}</span></div>
+              <div><span class="font-semibold text-gray-600">Complemento:</span> <span class="text-gray-900">${supplier.property_endere_o_complemento || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">Bairro:</span> <span class="text-gray-900">${supplier.property_bairro || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">Cidade/UF:</span> <span class="text-gray-900">${supplier.property_cidade || ''} - ${supplier.property_estado || ''}</span></div>
+              <div><span class="font-semibold text-gray-600">CEP:</span> <span class="text-gray-900">${supplier.property_cep || '-'}</span></div>
+            </div>
+          </div>
+
+          <!-- Card 4: Logística -->
+          <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
+            <h3 class="text-lg font-bold font-heading mb-4 border-b pb-2" style="color: ${COLORS.black};">Logística</h3>
+            <div class="space-y-3 text-sm">
+              <div><span class="font-semibold text-gray-600">Retira no Local:</span> <span class="text-gray-900">${supplier.property_retira_no_local ? 'Sim' : 'Não'}</span></div>
+              <div><span class="font-semibold text-gray-600">Área de Cobertura:</span> <span class="text-gray-900">${supplier.property_rea_de_cobertura_de_entrega || '-'}</span></div>
+              <div><span class="font-semibold text-gray-600">Observações:</span> <p class="text-gray-900 mt-1 whitespace-pre-line">${supplier.property_observa_es_de_contato || '-'}</p></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Lista de Produtos Vinculados -->
+        <div class="mt-6 bg-white p-6 rounded-lg shadow border border-gray-200">
+          <h3 class="text-lg font-bold font-heading mb-4 border-b pb-2" style="color: ${COLORS.black};">Produtos Vinculados</h3>
+          ${renderLinkedProducts(supplier)}
+        </div>
+      `;
+        }
+
+        /**
+         * Renderiza a lista de produtos vinculados
+         */
+        function renderLinkedProducts(supplier) {
+            const productIds = supplier.property_produto_fornecedor || [];
+
+            if (productIds.length === 0) {
+                return `<p class="text-gray-500 text-sm">Nenhum produto vinculado a este fornecedor.</p>`;
+            }
+
+            // Resolve os nomes dos produtos
+            // Nota: getProductName busca pelo ID do produto. 
+            // property_produto_fornecedor contém IDs de "Produto_Fornecedor" (tabela de ligação) ou IDs de "Produto"?
+            // Baseado no JSON, parece ser uma lista de IDs. Vamos assumir que são IDs que podemos resolver ou que precisamos buscar na tabela de ligação.
+            // Olhando o app.js, temos 'productSuppliers' (loadProductSuppliers).
+            // Vamos tentar listar os nomes. Se forem IDs da tabela de ligação, precisamos achar o produto correspondente.
+
+            // Estratégia: Listar os itens e tentar resolver o nome.
+            // Se property_produto_fornecedor for uma lista de IDs da tabela intermediária, precisamos cruzar.
+
+            const { appData } = pageState;
+            const linkedProducts = [];
+
+            productIds.forEach(linkId => {
+                // Tenta achar na tabela intermediária
+                const linkItem = appData.productSuppliers.find(ps => ps.id === linkId);
+                if (linkItem && linkItem.property_produto && linkItem.property_produto.length > 0) {
+                    const productId = linkItem.property_produto[0];
+                    const productName = getProductName(productId);
+                    linkedProducts.push(productName);
+                }
+            });
+
+            if (linkedProducts.length === 0) {
+                return `<p class="text-gray-500 text-sm">Não foi possível identificar os produtos vinculados (IDs não resolvidos).</p>`;
+            }
+
+            return `
+        <ul class="list-disc list-inside text-sm text-gray-900 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+          ${linkedProducts.map(name => `<li>${name}</li>`).join('')}
+        </ul>
+      `;
+        }
+
+        /**
+         * Renderiza uma mensagem de erro na página
+         */
+        function renderPageError(message) {
+            renderScreenHeader("Erro", "", "");
+            const container = document.getElementById('supplier-detail-container');
+            if (container) {
+                container.innerHTML = `
+          <div class="bg-white p-6 rounded-lg shadow border border-red-200 text-center">
+            <h3 class="text-lg font-bold text-red-600">Ocorreu um Erro</h3>
+            <p class="mt-2 text-gray-600">${message}</p>
+            <a 
+              href="fornecedores.html" 
+              class="mt-6 inline-block px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-medium hover:bg-gray-300 transition text-sm"
+            >
+              &larr; Voltar para Fornecedores
+            </a>
+          </div>
+        `;
+            }
+        }
+
+        // --- Inicialização ---
+        init();
+
+    </script>
+
+</body>
+
+</html>
