@@ -259,24 +259,45 @@
             </span>
           </td>
           
-          <!-- Preço (Input) -->
+          <!-- Preço (Input + Botão Salvar) -->
           <td class="px-6 py-4 whitespace-nowrap">
-            <input 
-              type="number" 
-              class="price-input w-32 px-3 py-1 bg-white border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2"
-              style="--tw-ring-color: #FF4E00;"
-              value="${preco === 0 ? '' : preco}"
-              placeholder="0,00"
-              step="0.01"
-              min="0"
-              data-item-id="${item.id}"
-              ${canEdit ? '' : 'disabled'}
-            >
+            <div class="flex items-center space-x-2">
+              <input 
+                type="number" 
+                class="price-input w-32 px-3 py-1 bg-white border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2"
+                style="--tw-ring-color: #FF4E00;"
+                value="${preco === 0 ? '' : preco}"
+                placeholder="0,00"
+                step="0.01"
+                min="0"
+                data-item-id="${item.id}"
+                ${canEdit ? '' : 'disabled'}
+              >
+              ${canEdit ? `
+                <button 
+                  class="save-price-btn hidden p-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  data-item-id="${item.id}"
+                  title="Salvar Preço"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                </button>
+              ` : ''}
+            </div>
           </td>
           
-          <!-- Ações (Aprovar/Rejeitar) -->
+          <!-- Ações (Enviado/Aprovar/Rejeitar) -->
           <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
             ${canEdit ? `
+              ${status === 'Criado' ? `
+                <button 
+                  class="sent-btn px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+                  data-item-id="${item.id}"
+                  title="Marcar como Enviado ao Fornecedor"
+                >
+                  Enviado
+                </button>
+              ` : ''}
+              
               <button 
                 class="approve-btn px-3 py-1 rounded-md text-white transition-colors"
                 style="background-color: ${COLORS.blue};"
@@ -296,7 +317,7 @@
         }
           </td>
           
-          <!-- Enviar Mensagem (NOVOS BOTÕES) -->
+          <!-- Enviar Mensagem -->
           <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
             <button
               class="copy-text-btn p-2 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
@@ -376,7 +397,20 @@
       // --- Listeners dos Itens ---
 
       document.querySelectorAll('.price-input').forEach(input => {
-        input.addEventListener('change', handlePriceChange);
+        input.addEventListener('input', (e) => {
+          // Mostra o botão de salvar associado
+          const itemId = e.target.dataset.itemId;
+          const saveBtn = document.querySelector(`.save-price-btn[data-item-id="${itemId}"]`);
+          if (saveBtn) saveBtn.classList.remove('hidden');
+        });
+      });
+
+      document.querySelectorAll('.save-price-btn').forEach(btn => {
+        btn.addEventListener('click', handlePriceSave);
+      });
+
+      document.querySelectorAll('.sent-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleItemStatusUpdate(btn.dataset.itemId, 'Enviado Fornecedor'));
       });
 
       document.querySelectorAll('.approve-btn').forEach(btn => {
@@ -407,9 +441,22 @@
     /**
      * Lida com a mudança de preço em um item
      */
-    async function handlePriceChange(event) {
-      const itemId = event.target.dataset.itemId;
-      const newPrice = parseFloat(event.target.value) || 0;
+    /**
+     * Salva o preço do item (acionado pelo botão Salvar)
+     */
+    async function handlePriceSave(event) {
+      const btn = event.currentTarget;
+      const itemId = btn.dataset.itemId;
+
+      // Encontra o input de preço associado
+      const input = document.querySelector(`.price-input[data-item-id="${itemId}"]`);
+      if (!input) return;
+
+      const newPrice = parseFloat(input.value) || 0;
+
+      // Desabilita o botão enquanto salva
+      btn.disabled = true;
+      btn.innerHTML = `<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
       // 1. Atualizar no appData (local)
       const appData = pageState.appData;
@@ -417,16 +464,17 @@
 
       if (itemIndex === -1) {
         showError("Erro ao salvar: Item não encontrado localmente.");
+        btn.disabled = false;
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
         return;
       }
 
       appData.quoteItems[itemIndex].property_preco = newPrice;
 
       // Se o status for "Criado" ou "Enviado Fornecedor", muda para "Respondido"
-      let statusChanged = false;
+      // (Regra de negócio implícita: se tem preço, o fornecedor respondeu)
       if (['Criado', 'Enviado Fornecedor'].includes(appData.quoteItems[itemIndex].property_status)) {
         appData.quoteItems[itemIndex].property_status = 'Respondido';
-        statusChanged = true;
       }
 
       // 2. Salvar no localStorage
@@ -448,13 +496,21 @@
         const msg = response.Message || response.message || "Preço salvo e sincronizado!";
         showFeedback(msg, "success");
 
+        // Esconde o botão de salvar após sucesso
+        btn.classList.add('hidden');
+
       } catch (error) {
         console.error("Erro ao salvar no N8N:", error);
         showFeedback("Salvo localmente, mas falhou ao sincronizar.", "warning");
-      }
+      } finally {
+        // Restaura estado do botão
+        btn.disabled = false;
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
 
-      // 4. Re-renderizar a tela para atualizar status
-      init();
+        // Re-renderizar a tela para atualizar status (ex: mudou para Respondido)
+        // Isso também vai esconder o botão de salvar pois o renderItemRow o cria hidden
+        init();
+      }
     }
 
     /**
