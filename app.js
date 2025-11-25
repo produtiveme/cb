@@ -532,14 +532,28 @@ function showFeedback(message, type = 'error') {
   element.id = feedbackId;
 
   let bgColor, textColor, title;
-  if (type === 'success') {
-    bgColor = 'bg-green-500'; // Verde para sucesso
-    textColor = 'text-white';
-    title = 'Sucesso';
-  } else {
-    bgColor = 'bg-red-500'; // Vermelho para erro
-    textColor = 'text-white';
-    title = 'Erro';
+  switch (type) {
+    case 'success':
+      bgColor = 'bg-green-500';
+      textColor = 'text-white';
+      title = 'Sucesso';
+      break;
+    case 'info':
+      bgColor = 'bg-blue-500';
+      textColor = 'text-white';
+      title = 'Informação';
+      break;
+    case 'warning':
+      bgColor = 'bg-yellow-500';
+      textColor = 'text-white'; // ou text-gray-900 para melhor contraste
+      title = 'Atenção';
+      break;
+    case 'error':
+    default:
+      bgColor = 'bg-red-500';
+      textColor = 'text-white';
+      title = 'Erro';
+      break;
   }
 
   element.className = `${bgColor} ${textColor} p-4 rounded-lg shadow-lg mb-2 opacity-0 transition-opacity duration-300`;
