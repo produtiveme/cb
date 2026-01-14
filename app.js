@@ -759,7 +759,12 @@ async function loadInitialData() {
       suppliers: suppliersData,
       productSuppliers: productSuppliersData,
       quotes: quotesData,
-      quoteItems: quoteItemsData,
+      // Normalização de dados (N8N vs App)
+      // O N8N pode retornar 'property_pre_o', mas a aplicação espera 'property_preco'
+      quoteItems: quoteItemsData.map(item => ({
+        ...item,
+        property_preco: (item.property_pre_o !== undefined) ? item.property_pre_o : (item.property_preco || 0)
+      })),
       stockHistory: stockHistoryData
     };
 
