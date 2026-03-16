@@ -16,7 +16,7 @@ const COLORS = {
 // URLs dos Webhooks do N8N (Corrigidas)
 const N8N_URLS = {
   // *** CORREÇÃO AQUI: BASE_URL sem /curral-burguer ***
-  BASE_URL: "https://work.produ-cloud.com/webhook",
+  BASE_URL: "https://admfoodbusiness.app.n8n.cloud/webhook",
   loadProducts: "/curral-burguer_carrega_produtos",
   loadSuppliers: "/curral-burguer_carrega_todo_fornecedor", // Corrigido nome fornecedor
   loadProductSuppliers: "/curral-burguer_carrega_produto_fornecedor", // Corrigido nome produto_fornecedor
@@ -28,7 +28,9 @@ const N8N_URLS = {
   createQuote: "/curral-burguer_cria_cotacao",
   login: "/curral-burguer_login", // Novo endpoint de login
   updateQuoteItem: "/curral-burguer_atualiza_item_cotacao", // Novo endpoint
-  finalizeQuote: "/curral-burguer_finaliza_cotacao" // Novo endpoint
+  finalizeQuote: "/curral-burguer_finaliza_cotacao", // Novo endpoint
+  loadUnits: "https://admfoodbusiness.app.n8n.cloud/webhook/carrega-sigla", // Novo endpoint de unidades
+  loadUnitParams: "https://admfoodbusiness.app.n8n.cloud/webhook/carrega-param-unidade" // Endpoint para urls dinâmicas
 };
 
 // --- 2. UTILITÁRIOS DE API ---
@@ -146,12 +148,33 @@ async function postApi(endpoint, body) {
 }
 
 /**
+ * Busca a lista de unidades disponíveis no N8N.
+ * Não requer token pois é pré-login.
+ * @returns {Promise<Array>} Lista de unidades
+ */
+async function loadUnitsApi() {
+  const url = N8N_URLS.loadUnits;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Erro ao carregar unidades: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Erro na chamada API [GET] de unidades:", error);
+    throw new Error("Não foi possível carregar a lista de unidades.");
+  }
+}
+
+/**
  * Realiza o login via API N8N
  * @param {string} username 
  * @param {string} password 
+ * @param {string} unidade A sigla da unidade
  * @returns {Promise<object>} Dados do usuário se sucesso
  */
-async function loginApi(username, password) {
+async function loginApi(username, password, unidade) {
   const url = `${N8N_URLS.BASE_URL}${N8N_URLS.login}`;
   try {
     const response = await fetch(url, {
@@ -159,7 +182,7 @@ async function loginApi(username, password) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username, password, unidade })
     });
 
     if (!response.ok) {
@@ -171,17 +194,97 @@ async function loginApi(username, password) {
 
     const data = await response.json();
 
-    // Contrato esperado: { authenticated: true, user: { ... } }
-    if (!data.authenticated) {
-      throw new Error(data.message || "Falha na autenticação.");
+    // O novo contrato retorna um array com o usuário: [{ id: "...", name: "Daniel", base: "VML", token: "..." }]
+    if (Array.isArray(data) && data.length > 0 && data[0].token) {
+      return {
+        authenticated: true,
+        user: data[0]
+      };
+    } else if (data.authenticated) {
+      // Fallback para o contrato antigo
+      return data;
+    } else {
+      throw new Error(data.message || "Falha na autenticação. Usuário ou senha incorretos.");
     }
 
-    return data;
   } catch (error) {
     console.error("Erro no login:", error);
     throw error;
   }
 }
+
+/**
+ * Busca a parametrização de unidades (URLs específicas para cada loja)
+ */
+async function loadUnitConfigurationApi() {
+  const url = N8N_URLS.loadUnitParams;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Erro ao carregar parametrização: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Erro na chamada API [GET] de parametrização:", error);
+    throw new Error("Não foi possível carregar as configurações das unidades.");
+  }
+}
+
+/**
+ * Configura e salva as URLs de Webhooks específicas para a unidade do usuário logado
+ * @param {string} unitAlias A sigla da unidade (ex: "VML")
+ */
+async function setupDynamicUrls(unitAlias) {
+  try {
+    const configs = await loadUnitConfigurationApi();
+    const unitConfig = configs.find(c => c.property_sigla === unitAlias || c.name === unitAlias);
+    
+    if (!unitConfig) {
+      throw new Error(`Configuração não encontrada para a unidade: ${unitAlias}`);
+    }
+
+    const dynamicUrls = {
+      loadProducts: "/" + unitConfig.property_carrega_produto,
+      loadProductSuppliers: "/" + unitConfig.property_carrega_todo_produto_fornecedor,
+      loadStockHistory: "/" + unitConfig.property_carrega_todo_hist_rico_estoque,
+      loadSuppliers: "/" + unitConfig.property_carrega_todo_fornecedor,
+      updateQuoteItem: "/" + unitConfig.property_atualiza_item_cotacao,
+      createQuote: "/" + unitConfig.property_cria_cota_o_item,
+      loadQuotes: "/" + unitConfig.property_todas_cota_es,
+      finalizeQuote: "/" + unitConfig.property_finaliza_cota_o,
+      loadQuoteItems: "/" + unitConfig.property_carrega_item_cotacao
+    };
+
+    // Salva no localStorage para persistência entre reloads
+    localStorage.setItem('N8N_DYNAMIC_URLS', JSON.stringify(dynamicUrls));
+    
+    // Aplica imediatamente em memória
+    Object.assign(N8N_URLS, dynamicUrls);
+    
+    return true;
+  } catch (error) {
+    console.error("Erro ao configurar URLs dinâmicas:", error);
+    throw new Error("Falha ao configurar os parâmetros da unidade.");
+  }
+}
+
+/**
+ * Restaura as URLs dinâmicas do localStorage (usado no boot do app)
+ */
+function restoreDynamicUrls() {
+  try {
+    const saved = localStorage.getItem('N8N_DYNAMIC_URLS');
+    if (saved) {
+      const dynamicUrls = JSON.parse(saved);
+      Object.assign(N8N_URLS, dynamicUrls);
+    }
+  } catch (e) {
+    console.error("Erro ao restaurar URLs dinâmicas", e);
+  }
+}
+
+// Executa a restauração imediatamente ao carregar o app.js
+restoreDynamicUrls();
 
 /**
  * Recupera o token de autenticação
@@ -792,6 +895,8 @@ export {
   updateQuoteItemApi, // Exporta atualização de item
   finalizeQuoteApi, // Exporta finalização de cotação
   loadInitialData, // <-- NOVA EXPORTAÇÃO
+  loadUnitsApi, // Exporta a nova função de unidades
+  setupDynamicUrls, // Exporta a função de setup dinâmico das URLs
   // Dados
   saveAppData,
   saveSession, // Exporta a função de sessão
