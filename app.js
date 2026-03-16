@@ -44,6 +44,10 @@ async function fetchApi(endpoint) {
   const url = `${N8N_URLS.BASE_URL}${endpoint}`;
   const token = getToken();
 
+  // Configura timeout manual de 90 segundos (para suportar cargas grandes do Notion sem travar o browser infinitamente)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
+
   try {
     // Mudança para POST para enviar o token no corpo
     const response = await fetch(url, {
@@ -51,8 +55,10 @@ async function fetchApi(endpoint) {
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ token })
+      body: JSON.stringify({ token }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       // Tenta ler a resposta de erro, se houver
@@ -80,6 +86,10 @@ async function fetchApi(endpoint) {
       throw new Error(`Resposta inválida recebida do servidor.`);
     }
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error("O servidor demorou muito para responder (Timeout de 90s).");
+    }
     console.error(`Falha na chamada API [POST/READ] ${url}:`, error);
     // Remove a URL da mensagem de erro para o usuário final
     const userFriendlyMessage = error.message.includes('(URL:')
@@ -102,14 +112,19 @@ async function postApi(endpoint, body) {
   // Injeta o token automaticamente no corpo
   const payload = { ...body, token };
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
+
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     // Lê a resposta como texto primeiro para verificar se está vazia
     const textResponse = await response.text();
@@ -138,6 +153,10 @@ async function postApi(endpoint, body) {
 
     return responseBody; // Retorna a resposta de sucesso (ex: { message: "..." })
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error("O servidor demorou muito para responder (Timeout de 90s).");
+    }
     console.error(`Falha na chamada API [POST] ${url}:`, error);
     // Repassa a mensagem de erro específica do N8N (se existir)
     const userFriendlyMessage = error.message.includes('(URL:')
@@ -154,14 +173,20 @@ async function postApi(endpoint, body) {
  */
 async function loadUnitsApi() {
   const url = N8N_URLS.loadUnits;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
       throw new Error(`Erro ao carregar unidades: ${response.statusText}`);
     }
     const data = await response.json();
     return data;
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error("Erro na chamada API [GET] de unidades:", error);
     throw new Error("Não foi possível carregar a lista de unidades.");
   }
@@ -176,14 +201,19 @@ async function loadUnitsApi() {
  */
 async function loginApi(username, password, unidade) {
   const url = `${N8N_URLS.BASE_URL}${N8N_URLS.login}`;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
+
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ username, password, unidade })
+      body: JSON.stringify({ username, password, unidade }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       if (response.status === 401 || response.status === 403) {
@@ -208,6 +238,10 @@ async function loginApi(username, password, unidade) {
     }
 
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error("O servidor demorou muito para responder (Timeout de 90s).");
+    }
     console.error("Erro no login:", error);
     throw error;
   }
@@ -218,13 +252,19 @@ async function loginApi(username, password, unidade) {
  */
 async function loadUnitConfigurationApi() {
   const url = N8N_URLS.loadUnitParams;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
+
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
       throw new Error(`Erro ao carregar parametrização: ${response.statusText}`);
     }
     return await response.json();
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error("Erro na chamada API [GET] de parametrização:", error);
     throw new Error("Não foi possível carregar as configurações das unidades.");
   }
