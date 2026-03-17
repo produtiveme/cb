@@ -295,16 +295,42 @@ async function setupDynamicUrls(unitAlias) {
       loadQuoteItems: "/" + unitConfig.property_carrega_item_cotacao
     };
 
+    const dynamicColor = unitConfig.property_cor_de_destaque || COLORS.orange;
+
     // Salva no localStorage para persistência entre reloads
     localStorage.setItem('N8N_DYNAMIC_URLS', JSON.stringify(dynamicUrls));
+    localStorage.setItem('N8N_DYNAMIC_COLOR', dynamicColor);
     
     // Aplica imediatamente em memória
     Object.assign(N8N_URLS, dynamicUrls);
+    COLORS.orange = dynamicColor;
+    applyDynamicColor(dynamicColor);
     
     return true;
   } catch (error) {
     console.error("Erro ao configurar URLs dinâmicas:", error);
     throw new Error("Falha ao configurar os parâmetros da unidade.");
+  }
+}
+
+/**
+ * Aplica a cor dinâmica via propriedades CSS para o HTML usar
+ * @param {string} color Hex da cor de destaque
+ */
+function applyDynamicColor(color) {
+  if (!color) return;
+  // Converte a cor para os formatos RGBA usados pelo Tailwind via Custom Properties
+  document.documentElement.style.setProperty('--app-accent-color', color);
+  
+  // Tentar calcular um fundo mais claro (10% de opacidade) para substituir bg-orange-100
+  // Assumindo hex formato #RRGGBB
+  if (color.startsWith('#') && color.length === 7) {
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    document.documentElement.style.setProperty('--app-accent-bg-light', `rgba(${r}, ${g}, ${b}, 0.15)`);
+  } else {
+    document.documentElement.style.setProperty('--app-accent-bg-light', '#FFF9F3'); // Fallback para shell color
   }
 }
 
@@ -317,6 +343,13 @@ function restoreDynamicUrls() {
     if (saved) {
       const dynamicUrls = JSON.parse(saved);
       Object.assign(N8N_URLS, dynamicUrls);
+    }
+    const savedColor = localStorage.getItem('N8N_DYNAMIC_COLOR');
+    if (savedColor) {
+      COLORS.orange = savedColor;
+      applyDynamicColor(savedColor);
+    } else {
+      applyDynamicColor(COLORS.orange); // Aplica padrão
     }
   } catch (e) {
     console.error("Erro ao restaurar URLs dinâmicas", e);
@@ -586,19 +619,19 @@ function renderSidebarNav(activePage = 'estoque') {
         </h1>
       </div>
       <nav class="flex-1 px-4 py-6 space-y-2">
-      <a href="estoque.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'estoque' ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}">
+      <a href="estoque.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'estoque' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'estoque' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
         Estoque
       </a>
-      <a href="produtos.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'produtos' ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}">
+      <a href="produtos.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'produtos' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'produtos' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
         Produtos
       </a>
-      <a href="cotacoes.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'cotacoes' ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}">
+      <a href="cotacoes.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'cotacoes' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'cotacoes' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
         Cotações
       </a>
-      <a href="fornecedores.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'fornecedores' ? 'bg-orange-100 text-orange-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}">
+      <a href="fornecedores.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'fornecedores' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'fornecedores' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
         Fornecedores
       </a>
