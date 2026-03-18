@@ -184,6 +184,9 @@
         return;
       }
 
+      // Salva a unidade selecionada como fallback caso venha sem "base" na API
+      localStorage.setItem('lastSelectedUnit', unidade);
+
       // Autenticação Real via N8N
       try {
         setLoading(true); // Garante que o spinner apareça

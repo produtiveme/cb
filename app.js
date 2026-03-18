@@ -697,11 +697,26 @@ function renderFooter() {
     let unitName = "Não identificada";
     try {
       const userStr = localStorage.getItem('currentUser');
-      if (userStr) {
+      let extractedUnit = null;
+
+      if (userStr && userStr !== "undefined") {
         const user = JSON.parse(userStr);
-        unitName = user.unidade || user.base || "Desconhecida";
+        
+        // Função para encontrar a base de forma resiliente
+        const findBase = (obj) => {
+          if (!obj) return null;
+          if (Array.isArray(obj)) return findBase(obj[0]);
+          return obj.base || obj.unidade || (obj.user && findBase(obj.user)) || null;
+        };
+
+        extractedUnit = findBase(user);
       }
-    } catch (e) {}
+      
+      unitName = extractedUnit || localStorage.getItem('lastSelectedUnit') || "Desconhecida";
+
+    } catch (e) {
+      unitName = localStorage.getItem('lastSelectedUnit') || "Desconhecida";
+    }
 
     container.innerHTML = `
       <footer class="p-4 text-center text-sm text-gray-500 border-t" style="border-color: ${COLORS.azure};">
