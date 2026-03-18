@@ -23,7 +23,7 @@
   <!-- Card de Login -->
   <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-xl border border-gray-200">
     <div class="text-center mb-8">
-      <h1 class="text-3xl font-bold font-heading" style="color: #FF4E00;">
+      <h1 class="text-3xl font-bold font-heading" style="color: var(--app-accent-color);">
         Curral<span style="color: #1D1C1B;">Burguer</span>
       </h1>
       <p class="text-gray-500">Gestão de Cotação</p>
@@ -35,14 +35,14 @@
         <label for="username" class="block text-sm font-medium text-gray-700">Usuário</label>
         <input type="text" id="username" name="username" value="admin"
           class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-          style="--tw-ring-color: #FF4E00;" required>
+          style="--tw-ring-color: var(--app-accent-color);" required>
       </div>
 
       <div>
         <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
         <input type="password" id="password" name="password" value="admin"
           class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-          style="--tw-ring-color: #FF4E00;" required>
+          style="--tw-ring-color: var(--app-accent-color);" required>
       </div>
 
       <div>
@@ -50,7 +50,7 @@
         <div class="relative mt-1">
           <select id="unidade" name="unidade" 
             class="block w-full appearance-none px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 disabled:bg-gray-100 disabled:text-gray-500"
-            style="--tw-ring-color: #FF4E00;" required disabled>
+            style="--tw-ring-color: var(--app-accent-color);" required disabled>
             <option value="" disabled selected>Carregando unidades...</option>
           </select>
           <div class="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
@@ -75,7 +75,7 @@
       <div>
         <button type="submit" id="login-button"
           class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white transition-colors"
-          style="background-color: #FF4E00;">
+          style="background-color: var(--app-accent-color);">
           Entrar
         </button>
       </div>

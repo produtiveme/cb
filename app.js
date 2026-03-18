@@ -329,8 +329,10 @@ function applyDynamicColor(color) {
     const g = parseInt(color.slice(3, 5), 16);
     const b = parseInt(color.slice(5, 7), 16);
     document.documentElement.style.setProperty('--app-accent-bg-light', `rgba(${r}, ${g}, ${b}, 0.15)`);
+    document.documentElement.style.setProperty('--app-accent-bg-ultralight', `rgba(${r}, ${g}, ${b}, 0.04)`);
   } else {
     document.documentElement.style.setProperty('--app-accent-bg-light', '#FFF9F3'); // Fallback para shell color
+    document.documentElement.style.setProperty('--app-accent-bg-ultralight', '#FFF9F3');
   }
 }
 

@@ -145,7 +145,7 @@
                 id="filter-name" 
                 value="${pageState.filters.name}"
                 class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-                style="--tw-ring-color: #FF4E00;"
+                style="--tw-ring-color: var(--app-accent-color);"
                 placeholder="Ex: Batata Frita"
               >
             </div>
@@ -156,7 +156,7 @@
               <select 
                 id="filter-category" 
                 class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-                style="--tw-ring-color: #FF4E00;"
+                style="--tw-ring-color: var(--app-accent-color);"
               >
                 <option value="all">Todas</option>
                 ${categoryOptions}
@@ -169,7 +169,7 @@
               <select 
                 id="filter-status" 
                 class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-                style="--tw-ring-color: #FF4E00;"
+                style="--tw-ring-color: var(--app-accent-color);"
               >
                 <option value="all">Todas</option>
                 <option value="Ativo">Ativo</option>
@@ -183,7 +183,7 @@
               <select 
                 id="filter-sort" 
                 class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-                style="--tw-ring-color: #FF4E00;"
+                style="--tw-ring-color: var(--app-accent-color);"
               >
                 <option value="alpha">Ordem alfabética (A-Z)</option>
                 <option value="alpha-desc">Ordem alfabética (Z-A)</option>
@@ -197,7 +197,7 @@
               <button 
                 id="filter-stock-low"
                 class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium transition-colors"
-                style="background-color: ${pageState.filters.stockLow ? '#FF4E00' : '#D4E7E6'}; color: ${pageState.filters.stockLow ? 'white' : '#1D1C1B'};"
+                style="background-color: ${pageState.filters.stockLow ? 'var(--app-accent-color)' : '#D4E7E6'}; color: ${pageState.filters.stockLow ? 'white' : '#1D1C1B'};"
               >
                 Estoque Baixo
               </button>
@@ -361,7 +361,7 @@
             <a 
               href="estoque_detalhe.html?id=${product.id}" 
               class="text-sm font-medium hover:underline"
-              style="color: #FF4E00;"
+              style="color: var(--app-accent-color);"
               title="Ver histórico e detalhes"
             >
               ${product.property_nome}
@@ -468,7 +468,7 @@
             value="1" 
             min="1"
             class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-            style="--tw-ring-color: #FF4E00;"
+            style="--tw-ring-color: var(--app-accent-color);"
             required
           >
           <p id="quote-quantity-error" class="hidden text-xs text-red-500 mt-1">A quantidade deve ser maior que 0.</p>

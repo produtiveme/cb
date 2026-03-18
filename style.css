@@ -11,13 +11,18 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --app-accent-color: #FF4E00;
+    --app-accent-bg-ultralight: #FFF9F3;
+  }
+
   /*
     Define a fonte padrão (Roboto) e a cor de fundo (Sea Shell)
     para toda a aplicação.
   */
   body {
     font-family: 'Roboto', sans-serif;
-    background-color: #FFF9F3; /* Cor 'cb-shell' */
+    background-color: var(--app-accent-bg-ultralight);
     color: #1D1C1B; /* Cor 'cb-black' */
   }
 
