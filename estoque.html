@@ -72,6 +72,7 @@
         category: 'all',
         status: 'all',
         stockLow: false,
+        sort: 'alpha',
       },
       categories: [], // Lista de categorias únicas
     };
@@ -134,7 +135,7 @@
 
       container.innerHTML = `
         <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
             
             <!-- Filtro Nome -->
             <div class="md:col-span-2">
@@ -176,6 +177,21 @@
               </select>
             </div>
 
+            <!-- Filtro Ordenação -->
+            <div>
+              <label for="filter-sort" class="block text-sm font-medium text-gray-700">Ordenar por</label>
+              <select 
+                id="filter-sort" 
+                class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                style="--tw-ring-color: #FF4E00;"
+              >
+                <option value="alpha">Ordem alfabética (A-Z)</option>
+                <option value="alpha-desc">Ordem alfabética (Z-A)</option>
+                <option value="stock-desc">Maior Estoque</option>
+                <option value="stock-asc">Menor Estoque</option>
+              </select>
+            </div>
+
             <!-- Botão Estoque Baixo -->
             <div class="md:col-span-1">
               <button 
@@ -194,6 +210,7 @@
       // Define os valores selecionados nos dropdowns
       document.getElementById('filter-category').value = pageState.filters.category;
       document.getElementById('filter-status').value = pageState.filters.status;
+      document.getElementById('filter-sort').value = pageState.filters.sort;
     }
 
     /**
@@ -215,6 +232,11 @@
         renderStockTable();
       });
 
+      document.getElementById('filter-sort').addEventListener('change', (e) => {
+        pageState.filters.sort = e.target.value;
+        renderStockTable();
+      });
+
       document.getElementById('filter-stock-low').addEventListener('click', () => {
         pageState.filters.stockLow = !pageState.filters.stockLow;
         renderFilters(); // Renderiza os filtros para atualizar a cor do botão
@@ -233,7 +255,7 @@
       renderLoading(container); // Mostra o spinner
 
       const { products } = pageState.appData;
-      const { name, category, status, stockLow } = pageState.filters;
+      const { name, category, status, stockLow, sort } = pageState.filters;
 
       // Aplica filtros
       const filteredProducts = products.filter(product => {
@@ -252,6 +274,29 @@
           (product.property_alerta_de_estoque === true); // property_alerta_de_estoque é o "Estoque Baixo"
 
         return matchName && matchCategory && matchStatus && matchStockLow;
+      });
+
+      // Aplica ordenação
+      filteredProducts.sort((a, b) => {
+        const nameA = (a.property_nome || '').toLowerCase();
+        const nameB = (b.property_nome || '').toLowerCase();
+        const stockA = a.property_estoque_atual || 0;
+        const stockB = b.property_estoque_atual || 0;
+
+        switch (sort) {
+          case 'alpha':
+            return nameA.localeCompare(nameB, 'pt-BR');
+          case 'alpha-desc':
+            return nameB.localeCompare(nameA, 'pt-BR');
+          case 'stock-asc':
+            if (stockA === stockB) return nameA.localeCompare(nameB, 'pt-BR');
+            return stockA - stockB;
+          case 'stock-desc':
+            if (stockA === stockB) return nameA.localeCompare(nameB, 'pt-BR');
+            return stockB - stockA;
+          default:
+            return 0;
+        }
       });
 
       // Simula um pequeno atraso para o spinner ser visível
