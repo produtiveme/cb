@@ -1,7 +1,7 @@
 // --- APP CORE: Funções e Configurações Compartilhadas ---
 
 // --- 1. CONFIGURAÇÃO ---
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '2.5.0';
 
 // Paleta de Cores (Baseada na Identidade Visual)
 const COLORS = {
@@ -694,9 +694,20 @@ function renderSidebarNav(activePage = 'estoque') {
 function renderFooter() {
   const container = document.getElementById('footer-container');
   if (container) {
+    let unitName = "Não identificada";
+    try {
+      const userStr = localStorage.getItem('currentUser');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        unitName = user.unidade || user.base || "Desconhecida";
+      }
+    } catch (e) {}
+
     container.innerHTML = `
       <footer class="p-4 text-center text-sm text-gray-500 border-t" style="border-color: ${COLORS.azure};">
-        Desenvolvido pelo ProdutiveMe. Versão ${APP_VERSION}
+        <p class="font-medium text-gray-700 mb-1">Unidade: ${unitName}</p>
+        <p>Desenvolvido pelo ProdutiveMe</p>
+        <p class="text-xs mt-1">Versão ${APP_VERSION}</p>
       </footer>
     `;
   } else {
