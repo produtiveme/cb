@@ -1,7 +1,7 @@
 // --- APP CORE: Funções e Configurações Compartilhadas ---
 
 // --- 1. CONFIGURAÇÃO ---
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.6.0';
 
 // Paleta de Cores (Baseada na Identidade Visual)
 const COLORS = {
@@ -296,10 +296,12 @@ async function setupDynamicUrls(unitAlias) {
     };
 
     const dynamicColor = unitConfig.property_cor_de_destaque || COLORS.orange;
+    const dynamicStoreName = unitConfig.property_nome_da_loja || '';
 
     // Salva no localStorage para persistência entre reloads
     localStorage.setItem('N8N_DYNAMIC_URLS', JSON.stringify(dynamicUrls));
     localStorage.setItem('N8N_DYNAMIC_COLOR', dynamicColor);
+    localStorage.setItem('N8N_DYNAMIC_STORE_NAME', dynamicStoreName);
     
     // Aplica imediatamente em memória
     Object.assign(N8N_URLS, dynamicUrls);
@@ -454,6 +456,9 @@ function clearAppData() {
   localStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('currentUser');
+  localStorage.removeItem('N8N_DYNAMIC_STORE_NAME');
+  localStorage.removeItem('N8N_DYNAMIC_URLS');
+  localStorage.removeItem('N8N_DYNAMIC_COLOR');
 }
 
 /**
@@ -613,11 +618,13 @@ function renderSidebarNav(activePage = 'estoque') {
   // Classe específica para o link inativo
   const inactiveClass = `text-gray-700 hover:bg-gray-200`; // Cinza escuro no hover
 
+  const storeName = localStorage.getItem('N8N_DYNAMIC_STORE_NAME') || 'Curral Burguer';
+
   container.innerHTML = `
     <aside class="w-full md:w-64 bg-white md:min-h-screen p-4 border-b md:border-b-0 md:border-r" style="border-color: ${COLORS.azure};">
       <div class="flex items-center justify-center md:justify-start mb-6">
         <h1 class="text-2xl font-bold font-heading" style="color: ${COLORS.orange};">
-          Curral<span style="color: ${COLORS.black};">Burguer</span>
+          ${storeName}
         </h1>
       </div>
       <nav class="flex-1 px-4 py-6 space-y-2">

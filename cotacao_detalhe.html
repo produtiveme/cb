@@ -381,7 +381,8 @@
 
       // Mensagem personalizada
       let text = `Olá, ${supplierName}!\n\n`;
-      text += `Gostaria de cotar o seguinte item para o Curral Burguer:\n\n`;
+      const storeName = localStorage.getItem('N8N_DYNAMIC_STORE_NAME') || 'Curral Burguer';
+      text += `Gostaria de cotar o seguinte item para o ${storeName}:\n\n`;
       text += `*Produto:* ${productName}\n`;
       text += `*Quantidade:* ${quantidade} ${unidade}\n\n`;
       text += `Aguardo seu retorno com o valor. Obrigado!\n\n`;
