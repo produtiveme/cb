@@ -358,7 +358,20 @@
       const supplierIds = productSuppliers.map(ps => ps.property_fornecedor && ps.property_fornecedor[0]);
       const uniqueSupplierIds = [...new Set(supplierIds)].filter(id => id); // Remove undefined/null
       const nomesFornecedores = uniqueSupplierIds.map(id => getSupplierName(id));
-      const fornecedoresTxt = nomesFornecedores.length > 0 ? nomesFornecedores.join(', ') : 'Sem fornecedor cadastrado';
+      
+      let fornecedoresHtml = '';
+      if (nomesFornecedores.length > 0) {
+        const top3 = nomesFornecedores.slice(0, 3);
+        const restante = nomesFornecedores.length - 3;
+        
+        fornecedoresHtml = top3.map(n => `<div class="text-xs text-gray-500 mt-1 truncate max-w-[220px]" title="${n}">• ${n}</div>`).join('');
+        
+        if (restante > 0) {
+          fornecedoresHtml += `<div class="text-xs text-gray-400 mt-1 font-medium italic">+ ${restante} outro(s)</div>`;
+        }
+      } else {
+        fornecedoresHtml = `<div class="text-xs text-gray-400 mt-1 italic">Sem fornecedor cadastrado</div>`;
+      }
 
       // Formata porcentagem: 1 = 100%, 0.25 = 25%
       const formatPct = (val) => val != null ? (val * 100).toFixed(0) + '%' : 'N/A';
@@ -387,9 +400,9 @@
               >
                 ${product.property_nome}
               </a>
-              <span class="text-xs text-gray-400 mt-1 truncate max-w-[200px]" title="${fornecedoresTxt}">
-                ${fornecedoresTxt}
-              </span>
+              <div class="mt-1">
+                ${fornecedoresHtml}
+              </div>
             </div>
           </td>
 
