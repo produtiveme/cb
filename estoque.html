@@ -271,7 +271,7 @@
           (product.property_situa_o_do_produto === status);
 
         const matchStockLow = !stockLow ||
-          (product.property_alerta_de_estoque === true); // property_alerta_de_estoque é o "Estoque Baixo"
+          (product.property_a_o_necess_ria === 'COMPRAR'); // Filtra por "Ação Necessária" = COMPRAR
 
         return matchName && matchCategory && matchStatus && matchStockLow;
       });
@@ -313,9 +313,13 @@
               <thead class="bg-gray-50">
                 <tr>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Produto</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque Atual</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque Mínimo</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unidade</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque Atual</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque Ideal</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Porcentagem</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comprar</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">% de Compra</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ação Necessária</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Situação</th>
                   <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                 </tr>
@@ -340,17 +344,23 @@
      */
     function renderRow(product) {
       const estoqueAtual = product.property_estoque_atual || 0;
-      const estoqueMinimo = product.property_estoque_m_nimo || 0;
+      const estoqueIdeal = product.property_estoque_ideal || 0;
+      const porcentagem = product.property_porcentagem != null ? product.property_porcentagem : null;
+      const comprar = product.property_comprar != null ? product.property_comprar : 0;
+      const deCompraDoEstoque = product.property_de_compra_do_estoque != null ? product.property_de_compra_do_estoque : null;
+      const acaoNecessaria = product.property_a_o_necess_ria || '';
 
-      const isLowStock = product.property_alerta_de_estoque === true;
+      // Formata porcentagem: 1 = 100%, 0.25 = 25%
+      const formatPct = (val) => val != null ? (val * 100).toFixed(0) + '%' : 'N/A';
 
-      // Define a cor do texto do estoque
-      let stockColorClass = 'text-gray-900';
-      if (isLowStock) {
-        stockColorClass = 'text-red-600 font-bold'; // Vermelho e negrito
-      }
+      // Define a cor do texto do estoque atual
+      const isComprar = acaoNecessaria === 'COMPRAR';
+      const stockColorClass = isComprar ? 'text-red-600 font-bold' : 'text-gray-900';
 
-      // Define o badge de situação
+      // Badge Ação Necessária
+      const acaoBg = isComprar ? 'background-color:#FEE2E2; color:#991B1B;' : 'background-color:#D1FAE5; color:#065F46;';
+
+      // Badge Situação
       const status = product.property_situa_o_do_produto || 'Indefinido';
       const statusColorClass = status === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
 
@@ -367,31 +377,51 @@
               ${product.property_nome}
             </a>
           </td>
-          
-          <!-- Estoque Atual -->
-          <td class="px-6 py-4 whitespace-nowrap">
-            <span class="text-sm ${stockColorClass}">
-              ${estoqueAtual}
-            </span>
-          </td>
-          
-          <!-- Estoque Mínimo -->
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-            ${estoqueMinimo}
-          </td>
-          
+
           <!-- Unidade -->
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
             ${product.property_unidade_de_medida || 'N/A'}
           </td>
-          
+
+          <!-- Estoque Atual -->
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="text-sm ${stockColorClass}">${estoqueAtual}</span>
+          </td>
+
+          <!-- Estoque Ideal -->
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            ${estoqueIdeal}
+          </td>
+
+          <!-- Porcentagem -->
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            ${formatPct(porcentagem)}
+          </td>
+
+          <!-- Comprar -->
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            ${comprar}
+          </td>
+
+          <!-- % de Compra do Estoque -->
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            ${formatPct(deCompraDoEstoque)}
+          </td>
+
+          <!-- Ação Necessária -->
+          <td class="px-6 py-4 whitespace-nowrap">
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="${acaoBg}">
+              ${acaoNecessaria || 'N/A'}
+            </span>
+          </td>
+
           <!-- Situação -->
           <td class="px-6 py-4 whitespace-nowrap">
             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColorClass}">
               ${status}
             </span>
           </td>
-          
+
           <!-- Ações -->
           <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
             <button
