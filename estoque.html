@@ -352,8 +352,12 @@
       const acaoNecessaria = product.property_a_o_necess_ria || '';
 
       // Identificar fornecedores
-      const fornecedoresIds = product.property_fornecedor_do_produto || [];
-      const nomesFornecedores = fornecedoresIds.map(id => getSupplierName(id));
+      const productSuppliers = pageState.appData.productSuppliers.filter(
+        ps => ps.property_produto && ps.property_produto.includes(product.id)
+      );
+      const supplierIds = productSuppliers.map(ps => ps.property_fornecedor && ps.property_fornecedor[0]);
+      const uniqueSupplierIds = [...new Set(supplierIds)].filter(id => id); // Remove undefined/null
+      const nomesFornecedores = uniqueSupplierIds.map(id => getSupplierName(id));
       const fornecedoresTxt = nomesFornecedores.length > 0 ? nomesFornecedores.join(', ') : 'Sem fornecedor cadastrado';
 
       // Formata porcentagem: 1 = 100%, 0.25 = 25%
