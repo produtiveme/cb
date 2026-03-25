@@ -70,12 +70,14 @@
       appData: null,
       filters: {
         name: '',
+        supplier: 'all',
         category: 'all',
         status: 'all',
         stockLow: false,
         sort: 'alpha',
       },
       categories: [], // Lista de categorias únicas
+      suppliers: [], // Lista de fornecedores para filtro
     };
 
     // --- Funções Principais ---
@@ -96,6 +98,9 @@
 
       // 3. Prepara dados auxiliares
       pageState.categories = extractCategories(pageState.appData.products);
+      pageState.suppliers = pageState.appData.suppliers
+        ? [...pageState.appData.suppliers].sort((a, b) => (a.property_nome || '').localeCompare(b.property_nome || '', 'pt-BR'))
+        : [];
 
       // 4. Renderiza componentes estáticos
       renderSidebarNav('estoque'); // Marca 'Estoque' como ativo
@@ -134,9 +139,13 @@
         .map(cat => `<option value="${cat}">${cat}</option>`)
         .join('');
 
+      const supplierOptions = pageState.suppliers
+        .map(sup => `<option value="${sup.id}">${sup.property_nome}</option>`)
+        .join('');
+
       container.innerHTML = `
         <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          <div class="grid grid-cols-1 md:grid-cols-7 gap-4 items-end">
             
             <!-- Filtro Nome -->
             <div class="md:col-span-2">
@@ -149,6 +158,19 @@
                 style="--tw-ring-color: var(--app-accent-color);"
                 placeholder="Ex: Batata Frita"
               >
+            </div>
+
+            <!-- Filtro Fornecedor -->
+            <div>
+              <label for="filter-supplier" class="block text-sm font-medium text-gray-700">Fornecedor</label>
+              <select 
+                id="filter-supplier" 
+                class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                style="--tw-ring-color: var(--app-accent-color);"
+              >
+                <option value="all">Todos</option>
+                ${supplierOptions}
+              </select>
             </div>
 
             <!-- Filtro Categoria -->
@@ -209,6 +231,7 @@
       `;
 
       // Define os valores selecionados nos dropdowns
+      document.getElementById('filter-supplier').value = pageState.filters.supplier;
       document.getElementById('filter-category').value = pageState.filters.category;
       document.getElementById('filter-status').value = pageState.filters.status;
       document.getElementById('filter-sort').value = pageState.filters.sort;
@@ -221,6 +244,11 @@
       document.getElementById('filter-name').addEventListener('input', (e) => {
         pageState.filters.name = e.target.value;
         renderStockTable(); // Apenas renderiza a tabela, não os filtros
+      });
+
+      document.getElementById('filter-supplier').addEventListener('change', (e) => {
+        pageState.filters.supplier = e.target.value;
+        renderStockTable();
       });
 
       document.getElementById('filter-category').addEventListener('change', (e) => {
@@ -256,7 +284,7 @@
       renderLoading(container); // Mostra o spinner
 
       const { products } = pageState.appData;
-      const { name, category, status, stockLow, sort } = pageState.filters;
+      const { name, supplier, category, status, stockLow, sort } = pageState.filters;
 
       // Aplica filtros
       const filteredProducts = products.filter(product => {
@@ -264,6 +292,16 @@
         const pName = (product.property_nome || '').toLowerCase();
 
         const matchName = pName.includes(fName);
+
+        // Filtro de fornecedor
+        let matchSupplier = true;
+        if (supplier !== 'all') {
+          const productSuppliers = pageState.appData.productSuppliers.filter(
+            ps => ps.property_produto && ps.property_produto.includes(product.id)
+          );
+          const supplierIds = productSuppliers.map(ps => ps.property_fornecedor && ps.property_fornecedor[0]);
+          matchSupplier = supplierIds.includes(supplier);
+        }
 
         const matchCategory = category === 'all' ||
           (product.property_categoria && product.property_categoria.includes(category));
@@ -274,7 +312,7 @@
         const matchStockLow = !stockLow ||
           (product.property_a_o_necess_ria === 'COMPRAR'); // Filtra por "Ação Necessária" = COMPRAR
 
-        return matchName && matchCategory && matchStatus && matchStockLow;
+        return matchName && matchSupplier && matchCategory && matchStatus && matchStockLow;
       });
 
       // Aplica ordenação
@@ -359,6 +397,9 @@
       const uniqueSupplierIds = [...new Set(supplierIds)].filter(id => id); // Remove undefined/null
       const nomesFornecedores = uniqueSupplierIds.map(id => getSupplierName(id));
       
+      // Ordena alfabeticamente os fornecedores
+      nomesFornecedores.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
       let fornecedoresHtml = '';
       if (nomesFornecedores.length > 0) {
         const top3 = nomesFornecedores.slice(0, 3);
