@@ -45,13 +45,17 @@
         import {
             checkAuth,
             getAppData,
+            saveAppData,
             renderSidebarNav,
             renderFooter,
             renderScreenHeader,
             showError,
+            showFeedback,
             getUrlParam,
+            getQuoteById,
             getSupplierById,
             getProductName,
+            updateQuoteItemApi,
             COLORS
         } from './app.js';
 
@@ -202,7 +206,33 @@
           <h3 class="text-lg font-bold font-heading mb-4 border-b pb-2" style="color: ${COLORS.black};">Produtos Vinculados</h3>
           ${renderLinkedProducts(supplier)}
         </div>
+        
+        <!-- Tabela de Cotações do Fornecedor -->
+        <div class="mt-6 bg-white p-6 rounded-lg shadow border border-gray-200">
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b pb-2 gap-4">
+             <h3 class="text-lg font-bold font-heading" style="color: ${COLORS.black};">Cotações do Fornecedor</h3>
+             <select id="quote-status-filter" class="w-full md:w-auto text-sm border-gray-300 rounded-md shadow-sm bg-white px-3 py-2 cursor-pointer focus:ring-1 focus:outline-none" style="--tw-ring-color: var(--app-accent-color);">
+               <option value="all">Todas</option>
+               <option value="open" selected>Em Aberto (Pendentes)</option>
+               <option value="closed">Concluídas / Rejeitadas</option>
+             </select>
+          </div>
+          <div id="supplier-quotes-container"></div>
+        </div>
       `;
+            
+            // Renderiza as cotações imediatamente após injetar o innerHTML
+            setTimeout(() => {
+                renderSupplierQuotes(supplier.id, 'open');
+                
+                // Adiciona listener para o select
+                const filterSelect = document.getElementById('quote-status-filter');
+                if (filterSelect) {
+                    filterSelect.addEventListener('change', (e) => {
+                        renderSupplierQuotes(supplier.id, e.target.value);
+                    });
+                }
+            }, 0);
         }
 
         /**
@@ -247,6 +277,269 @@
           ${linkedProducts.map(name => `<li>${name}</li>`).join('')}
         </ul>
       `;
+        }
+
+        /**
+         * Renderiza as cotações do fornecedor
+         */
+        function renderSupplierQuotes(supplierId, filterType) {
+            const { appData } = pageState;
+            const container = document.getElementById('supplier-quotes-container');
+            if (!container) return;
+
+            let supplierItems = appData.quoteItems.filter(item => 
+                item.property_fornecedor && item.property_fornecedor.includes(supplierId)
+            );
+
+            supplierItems = supplierItems.map(item => {
+                const quote = appData.quotes.find(q => q.property_item && q.property_item.includes(item.id));
+                return { item, quote };
+            }).filter(obj => obj.quote);
+
+            if (filterType === 'open') {
+                const openStatuses = ['Criado', 'Enviado Fornecedor', 'Respondido'];
+                supplierItems = supplierItems.filter(obj => openStatuses.includes(obj.item.property_status));
+            } else if (filterType === 'closed') {
+                const closedStatuses = ['Aprovado', 'Rejeitado'];
+                supplierItems = supplierItems.filter(obj => closedStatuses.includes(obj.item.property_status));
+            }
+
+            if (supplierItems.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 text-sm py-4 text-center border rounded bg-gray-50">Nenhuma cotação encontrada para este filtro.</p>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                      <thead class="bg-gray-50">
+                        <tr>
+                          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cotação / Produto</th>
+                          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qtd</th>
+                          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço (R$)</th>
+                          <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                          <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Mensagem</th>
+                        </tr>
+                      </thead>
+                      <tbody class="bg-white divide-y divide-gray-200">
+                        ${supplierItems.map(obj => renderSupplierQuoteRow(obj.item, obj.quote)).join('')}
+                      </tbody>
+                    </table>
+                </div>
+            `;
+
+            addSupplierQuoteListeners();
+        }
+
+        function renderSupplierQuoteRow(item, quote) {
+            const status = item.property_status || 'Criado';
+            const preco = item.property_preco || 0;
+            const productName = getProductName(quote.property_produto[0]);
+            const quantidade = quote.property_quantidade || 'N/A';
+            const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
+
+            let statusColor = 'bg-gray-100 text-gray-800';
+            if (status === 'Enviado Fornecedor') statusColor = 'bg-blue-100 text-blue-800';
+            else if (status === 'Respondido') statusColor = 'bg-yellow-100 text-yellow-800';
+            else if (status === 'Aprovado') statusColor = 'bg-green-100 text-green-800';
+            else if (status === 'Rejeitado') statusColor = 'bg-red-100 text-red-800';
+
+            const canEdit = status !== 'Aprovado' && status !== 'Rejeitado';
+
+            return `
+              <tr>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <div class="text-sm font-medium text-gray-900">${productName}</div>
+                  <div class="text-xs text-gray-500">${quote.property_nome}</div>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  ${quantidade} ${unidade}
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}">
+                    ${status}
+                  </span>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap">
+                  <div class="flex items-center space-x-2">
+                    <input 
+                      type="number" 
+                      class="price-input w-24 px-2 py-1 bg-white border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2"
+                      style="--tw-ring-color: var(--app-accent-color);"
+                      value="${preco === 0 ? '' : preco}"
+                      placeholder="0,00"
+                      step="0.01"
+                      min="0"
+                      data-item-id="${item.id}"
+                      ${canEdit ? '' : 'disabled'}
+                    >
+                    ${canEdit ? `
+                      <button 
+                        class="save-price-btn hidden p-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                        data-item-id="${item.id}" title="Salvar"
+                      ><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg></button>
+                    ` : ''}
+                  </div>
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+                  ${canEdit ? `
+                    ${status === 'Criado' ? `
+                      <button class="sent-btn px-2 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors text-xs" data-item-id="${item.id}">Enviado</button>
+                    ` : ''}
+                    <button class="approve-btn px-2 py-1 rounded-md text-white transition-colors text-xs" style="background-color: ${COLORS.blue};" data-item-id="${item.id}" data-quote-id="${quote.id}">Aprovar</button>
+                    <button class="reject-btn px-2 py-1 bg-red-600 text-white rounded-md transition-colors text-xs" data-item-id="${item.id}" data-quote-id="${quote.id}">Rejeitar</button>
+                  ` : (status === 'Aprovado' ? '<span class="text-green-600">Aprovado</span>' : '<span class="text-red-600">Rejeitado</span>')}
+                </td>
+                <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+                  <button class="copy-text-btn p-1.5 rounded-full text-gray-500 hover:bg-gray-100 transition-colors" data-item-id="${item.id}" data-quote-id="${quote.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg></button>
+                  <button class="open-wpp-btn p-1.5 rounded-full text-white transition-colors" style="background-color: #25D366;" data-item-id="${item.id}" data-quote-id="${quote.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413 0 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.451-4.437-9.887-9.888-9.888-5.451 0-9.887 4.434-9.889 9.888.001 2.228.651 4.385 1.849 6.206l-.341 1.246 1.267-.328zM9.06 8.076C8.86 7.633 8.56 7.534 8.29 7.522c-.258-.011-.532-.011-.79-.011-.315 0-.715.116-1.091.554-.42.472-.647 1.05-.67 1.121-.023.07-.442 1.134.214 2.309.615 1.09 1.575 2.158 3.48 3.868 2.16 1.916 3.326 2.486 4.36 2.977 1.537.731 2.265.628 2.91.39 1.004-.37 2.06-.213 2.06-.213s.442-.04 1.002-.685c.56-.645.56-.998.51-.998s-.442-.212-1.002-.472c-.56-.26-1.002-.37-1.122-.37-.12 0-.26 0-.37.212-.12.213-.47.561-.68.731-.21.17-.42.213-.64.09-.26-.12-.47-.213-1.002-.472-1.346-.645-2.16-1.031-2.68-1.804-.37-.645-.04-1.002.12-1.122.12-.12.26-.26.37-.37.12-.12.21-.213.3-.37.12-.17.04-.42 0-.645-.04-.213-.56-1.346-.73-1.804z"/></svg></button>
+                </td>
+              </tr>
+            `;
+        }
+
+        function addSupplierQuoteListeners() {
+            document.querySelectorAll('.price-input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const itemId = e.target.dataset.itemId;
+                    const saveBtn = document.querySelector(`.save-price-btn[data-item-id="${itemId}"]`);
+                    if (saveBtn) saveBtn.classList.remove('hidden');
+                });
+            });
+
+            document.querySelectorAll('.save-price-btn').forEach(btn => btn.addEventListener('click', handlePriceSaveFornecedor));
+            document.querySelectorAll('.sent-btn').forEach(btn => btn.addEventListener('click', () => handleItemStatusUpdateFornecedor(btn.dataset.itemId, 'Enviado Fornecedor')));
+            document.querySelectorAll('.approve-btn').forEach(btn => btn.addEventListener('click', (e) => handleItemStatusUpdateFornecedor(e.currentTarget.dataset.itemId, 'Aprovado', e.currentTarget.dataset.quoteId)));
+            document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', (e) => handleItemStatusUpdateFornecedor(e.currentTarget.dataset.itemId, 'Rejeitado', e.currentTarget.dataset.quoteId)));
+            document.querySelectorAll('.copy-text-btn').forEach(btn => btn.addEventListener('click', handleCopyTextFornecedor));
+            document.querySelectorAll('.open-wpp-btn').forEach(btn => btn.addEventListener('click', handleOpenWhatsAppFornecedor));
+        }
+
+        async function handlePriceSaveFornecedor(event) {
+            const btn = event.currentTarget;
+            const itemId = btn.dataset.itemId;
+            const input = document.querySelector(`.price-input[data-item-id="${itemId}"]`);
+            if (!input) return;
+
+            const newPrice = parseFloat(input.value) || 0;
+            btn.disabled = true;
+            btn.innerHTML = `<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+
+            const appData = pageState.appData;
+            const itemIndex = appData.quoteItems.findIndex(i => i.id === itemId);
+
+            if (itemIndex === -1) {
+                showError("Erro: Item não encontrado.");
+                btn.disabled = false;
+                return;
+            }
+
+            appData.quoteItems[itemIndex].property_preco = newPrice;
+            if (['Criado', 'Enviado Fornecedor'].includes(appData.quoteItems[itemIndex].property_status)) {
+                appData.quoteItems[itemIndex].property_status = 'Respondido';
+            }
+
+            saveAppData(appData);
+
+            try {
+                const response = await updateQuoteItemApi(itemId, { 
+                    price: newPrice, 
+                    status: appData.quoteItems[itemIndex].property_status 
+                });
+                showFeedback(response.message || response.Message || "Preço salvo e sincronizado!", "success");
+            } catch (error) {
+                showFeedback("Salvo localmente, mas falhou ao sincronizar.", "warning");
+            } finally {
+                const filterSelect = document.getElementById('quote-status-filter');
+                renderSupplierQuotes(pageState.supplierId, filterSelect ? filterSelect.value : 'open');
+            }
+        }
+
+        async function handleItemStatusUpdateFornecedor(itemId, newStatus, quoteId) {
+            const { appData } = pageState;
+            const itemIndex = appData.quoteItems.findIndex(i => i.id === itemId);
+            if (itemIndex === -1) return;
+
+            if (newStatus === 'Aprovado') {
+                const price = appData.quoteItems[itemIndex].property_preco;
+                if (!price || price <= 0) {
+                    showError("Para aprovar, informe o PREÇO primeiro.");
+                    return;
+                }
+            }
+
+            appData.quoteItems[itemIndex].property_status = newStatus;
+            const updatesToDo = [{
+                id: itemId,
+                data: { price: appData.quoteItems[itemIndex].property_preco || 0, status: newStatus }
+            }];
+
+            if (newStatus === 'Aprovado' && quoteId) {
+                const quote = appData.quotes.find(q => q.id === quoteId);
+                if (quote && quote.property_item) {
+                    quote.property_item.forEach(otherItemId => {
+                        if (otherItemId === itemId) return;
+                        const otherIndex = appData.quoteItems.findIndex(i => i.id === otherItemId);
+                        if (otherIndex !== -1 && ['Criado', 'Enviado Fornecedor', 'Respondido'].includes(appData.quoteItems[otherIndex].property_status)) {
+                            appData.quoteItems[otherIndex].property_status = 'Rejeitado';
+                            updatesToDo.push({
+                                id: otherItemId,
+                                data: { price: appData.quoteItems[otherIndex].property_preco || 0, status: 'Rejeitado' }
+                            });
+                        }
+                    });
+                }
+            }
+
+            saveAppData(appData);
+
+            try {
+                showFeedback("Sincronizando...", "info");
+                for (const update of updatesToDo) {
+                    await updateQuoteItemApi(update.id, update.data);
+                }
+                showFeedback("Status atualizado!", "success");
+            } catch (error) {
+                showFeedback("Erro na sincronização.", "warning");
+            }
+
+            const filterSelect = document.getElementById('quote-status-filter');
+            renderSupplierQuotes(pageState.supplierId, filterSelect ? filterSelect.value : 'open');
+        }
+
+        function getWhatsappTextFornecedor(quote, item) {
+            const productName = getProductName(quote.property_produto[0]);
+            const quantidade = quote.property_quantidade || 'N/A';
+            const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
+            const supplierName = pageState.supplier.property_nome;
+            let text = `Olá, ${supplierName}!\\n\\nGostaria de cotar o seguinte item para o ${localStorage.getItem('N8N_DYNAMIC_STORE_NAME') || 'Curral Burguer'}:\\n\\n*Produto:* ${productName}\\n*Quantidade:* ${quantidade} ${unidade}\\n\\nAguardo seu retorno com o valor. Obrigado!\\n\\n(Referência: ${quote.property_nome} / Item: ${item.property_nome})`;
+            return text.trim().replace(/^\\s+/gm, '');
+        }
+
+        function handleCopyTextFornecedor(event) {
+            const itemId = event.currentTarget.dataset.itemId;
+            const quoteId = event.currentTarget.dataset.quoteId;
+            const item = pageState.appData.quoteItems.find(i => i.id === itemId);
+            const quote = pageState.appData.quotes.find(q => q.id === quoteId);
+            if (!item || !quote) return;
+            const text = getWhatsappTextFornecedor(quote, item);
+            navigator.clipboard.writeText(text).then(() => showFeedback("Texto copiado!", "success"));
+        }
+
+        function handleOpenWhatsAppFornecedor(event) {
+            const itemId = event.currentTarget.dataset.itemId;
+            const quoteId = event.currentTarget.dataset.quoteId;
+            const item = pageState.appData.quoteItems.find(i => i.id === itemId);
+            const quote = pageState.appData.quotes.find(q => q.id === quoteId);
+            if (!item || !quote) return;
+            const phone = pageState.supplier.property_whats_app;
+            if (!phone) {
+                showError("Fornecedor sem WhatsApp.");
+                return;
+            }
+            const text = encodeURIComponent(getWhatsappTextFornecedor(quote, item));
+            window.open(`https://wa.me/${phone.replace(/[\\s\\+\\-\\(\\)]/g, '')}?text=${text}`, '_blank');
         }
 
         /**
