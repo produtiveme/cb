@@ -620,47 +620,111 @@ function renderSidebarNav(activePage = 'estoque') {
 
   const storeName = localStorage.getItem('N8N_DYNAMIC_STORE_NAME') || 'Curral Burguer';
 
+  // Verifica estado salvo da sidebar
+  const isSidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+  const sidebarWidthClass = isSidebarCollapsed ? 'w-20' : 'w-64';
+  const textDisplayClass = isSidebarCollapsed ? 'hidden' : 'block';
+  const logoDisplayClass = isSidebarCollapsed ? 'hidden' : 'block';
+  const justifyLogoClass = isSidebarCollapsed ? 'justify-center' : 'justify-start';
+
   container.innerHTML = `
-    <aside class="w-full md:w-64 bg-white md:min-h-screen p-4 border-b md:border-b-0 md:border-r" style="border-color: ${COLORS.azure};">
-      <div class="flex items-center justify-center md:justify-start mb-6">
-        <h1 class="text-2xl font-bold font-heading" style="color: ${COLORS.orange};">
-          ${storeName}
-        </h1>
-      </div>
-      <nav class="flex-1 px-4 py-6 space-y-2">
-      <a href="estoque.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'estoque' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'estoque' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-        Estoque
-      </a>
-      <a href="produtos.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'produtos' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'produtos' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-        Produtos
-      </a>
-      <a href="cotacoes.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'cotacoes' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'cotacoes' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-        Cotações
-      </a>
-      <a href="fornecedores.html" class="flex items-center px-4 py-3 rounded-lg transition-colors ${activePage === 'fornecedores' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'fornecedores' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-        Fornecedores
-      </a>
+    <aside id="main-sidebar" class="w-full md:${sidebarWidthClass} bg-white md:min-h-screen p-4 border-b md:border-b-0 md:border-r relative transition-all duration-300 flex flex-col" style="border-color: ${COLORS.azure};">
       
-      <!-- Botão Atualizar Dados -->
-      <button id="refresh-data-btn" class="w-full flex items-center px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors text-left">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-        Atualizar Dados
+      <!-- Botão Toggle (Invisível no Mobile) -->
+      <button id="sidebar-toggle-btn" class="hidden md:flex absolute -right-3 top-6 bg-white border rounded-full w-6 h-6 items-center justify-center text-gray-500 hover:text-gray-900 shadow-sm z-20" style="border-color: ${COLORS.azure};">
+        <svg id="sidebar-toggle-icon" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-300 ${isSidebarCollapsed ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
       </button>
 
-      <button id="logout-btn" class="w-full flex items-center px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors text-left mt-auto">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-        Sair
-      </button>
-    </nav>
+      <div class="flex items-center ${justifyLogoClass} mb-6 min-h-[32px] transition-all duration-300" id="sidebar-logo-container">
+        <h1 id="sidebar-logo-text" class="text-2xl font-bold font-heading whitespace-nowrap overflow-hidden transition-all duration-300 ${logoDisplayClass}" style="color: ${COLORS.orange};">
+          ${storeName}
+        </h1>
+        <span id="sidebar-logo-icon" class="text-2xl font-bold font-heading ${isSidebarCollapsed ? 'block' : 'hidden'}" style="color: ${COLORS.orange};">
+          CB
+        </span>
+      </div>
+      
+      <nav class="flex-1 px-2 py-4 space-y-2 overflow-x-hidden flex flex-col">
+        <a href="estoque.html" class="flex items-center px-2 md:px-4 py-3 rounded-lg transition-colors ${activePage === 'estoque' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'estoque' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}" title="Estoque">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+          <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Estoque</span>
+        </a>
+        <a href="produtos.html" class="flex items-center px-2 md:px-4 py-3 rounded-lg transition-colors ${activePage === 'produtos' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'produtos' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}" title="Produtos">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+          <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Produtos</span>
+        </a>
+        <a href="cotacoes.html" class="flex items-center px-2 md:px-4 py-3 rounded-lg transition-colors ${activePage === 'cotacoes' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'cotacoes' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}" title="Cotações">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+          <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Cotações</span>
+        </a>
+        <a href="fornecedores.html" class="flex items-center px-2 md:px-4 py-3 rounded-lg transition-colors ${activePage === 'fornecedores' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'fornecedores' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}" title="Fornecedores">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+          <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Fornecedores</span>
+        </a>
+        
+        <div class="mt-auto pt-4 space-y-2">
+          <!-- Botão Atualizar Dados -->
+          <button id="refresh-data-btn" class="w-full flex items-center px-2 md:px-4 py-3 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors text-left" title="Atualizar Dados">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Atualizar Dados</span>
+          </button>
+
+          <!-- Botão Sair -->
+          <button id="logout-btn" class="w-full flex items-center px-2 md:px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 transition-colors text-left" title="Sair">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Sair</span>
+          </button>
+        </div>
+      </nav>
     </aside>
   `;
 
-  // Adiciona o evento de clique ao botão de logout
+  // Event listeners (setTimeout para garantir parse do DOM)
   setTimeout(() => {
+    // ---- Toggle Lógica ----
+    const sidebar = document.getElementById('main-sidebar');
+    const toggleBtn = document.getElementById('sidebar-toggle-btn');
+    const toggleIcon = document.getElementById('sidebar-toggle-icon');
+    const sidebarTexts = document.querySelectorAll('.sidebar-text');
+    const logoContainer = document.getElementById('sidebar-logo-container');
+    const logoText = document.getElementById('sidebar-logo-text');
+    const logoIcon = document.getElementById('sidebar-logo-icon');
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const isCollapsed = sidebar.classList.contains('md:w-20');
+        
+        if (isCollapsed) {
+          // Expandir
+          sidebar.classList.remove('md:w-20');
+          sidebar.classList.add('md:w-64');
+          toggleIcon.classList.remove('rotate-180');
+          
+          logoContainer.classList.remove('justify-center');
+          logoContainer.classList.add('justify-start');
+          logoIcon.classList.add('hidden');
+          logoText.classList.remove('hidden');
+          
+          sidebarTexts.forEach(el => el.classList.remove('hidden'));
+          localStorage.setItem('sidebarCollapsed', 'false');
+        } else {
+          // Recolher
+          sidebar.classList.remove('md:w-64');
+          sidebar.classList.add('md:w-20');
+          toggleIcon.classList.add('rotate-180');
+          
+          logoContainer.classList.remove('justify-start');
+          logoContainer.classList.add('justify-center');
+          logoIcon.classList.remove('hidden');
+          logoText.classList.add('hidden');
+          
+          sidebarTexts.forEach(el => el.classList.add('hidden'));
+          localStorage.setItem('sidebarCollapsed', 'true');
+        }
+      });
+    }
+
+    // ---- Ações Extras (Logout, Refresh) ----
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => {
@@ -669,27 +733,31 @@ function renderSidebarNav(activePage = 'estoque') {
       });
     }
 
-    // Adiciona listener para Atualizar Dados
     const refreshBtn = document.getElementById('refresh-data-btn');
     if (refreshBtn) {
       refreshBtn.addEventListener('click', async () => {
-        const originalText = refreshBtn.innerHTML;
+        const originalHtml = refreshBtn.innerHTML;
+        const btnTextSpan = refreshBtn.querySelector('.sidebar-text');
+        
+        // Mantém ícone + texto de loading conforme o estado da sidebar
+        const isCurrentCollapsed = sidebar.classList.contains('md:w-20');
+        
         refreshBtn.innerHTML = `
-          <svg class="animate-spin h-5 w-5 mr-3 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg class="animate-spin h-5 w-5 flex-shrink-0 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          Atualizando...
+          <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${isCurrentCollapsed ? 'hidden' : 'block'}">Atualizando...</span>
         `;
         refreshBtn.disabled = true;
 
         try {
           await loadInitialData();
           showFeedback("Dados atualizados com sucesso!", "success");
-          setTimeout(() => window.location.reload(), 1000); // Recarrega a página para refletir mudanças
+          setTimeout(() => window.location.reload(), 1000); 
         } catch (error) {
           showError("Erro ao atualizar dados: " + error.message);
-          refreshBtn.innerHTML = originalText;
+          refreshBtn.innerHTML = originalHtml;
           refreshBtn.disabled = false;
         }
       });
