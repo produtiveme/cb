@@ -1,7 +1,7 @@
 // --- APP CORE: Funções e Configurações Compartilhadas ---
 
 // --- 1. CONFIGURAÇÃO ---
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.15.0';
 
 // Paleta de Cores (Baseada na Identidade Visual)
 const COLORS = {
@@ -607,7 +607,6 @@ function renderSidebarNav(activePage = 'estoque') {
   const menuItems = [
     { slug: 'estoque', name: 'Estoque', href: 'estoque.html', icon: 'M4 7v10c0 1.1.9 2 2 2h12a2 2 0 002-2V7M16 11V3H8v8m-4 0h16' }, // Ícone Caixa
     { slug: 'cotacoes', name: 'Cotações', href: 'cotacoes.html', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' }, // Ícone Documento
-    { slug: 'produtos', name: 'Produtos', href: 'produtos.html', icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z' }, // Ícone Sacola
     { slug: 'fornecedores', name: 'Fornecedores', href: 'fornecedores.html', icon: 'M17 20h5v-2a3 3 0 00-5.356-2.238M4 20h5v-2a3 3 0 00-5.356-2.238M12 11a4 4 0 100-8 4 4 0 000 8zm0 11h.01M12 6a1 1 0 100-2 1 1 0 000 2z' } // Ícone Grupo
   ];
 
@@ -649,10 +648,7 @@ function renderSidebarNav(activePage = 'estoque') {
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
           <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Estoque</span>
         </a>
-        <a href="produtos.html" class="flex items-center px-2 md:px-4 py-3 rounded-lg transition-colors ${activePage === 'produtos' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'produtos' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}" title="Produtos">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
-          <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Produtos</span>
-        </a>
+
         <a href="cotacoes.html" class="flex items-center px-2 md:px-4 py-3 rounded-lg transition-colors ${activePage === 'cotacoes' ? 'font-medium' : 'text-gray-600 hover:bg-gray-100'}" style="${activePage === 'cotacoes' ? 'background-color: var(--app-accent-bg-light, #FFEDED); color: ' + COLORS.orange : ''}" title="Cotações">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
           <span class="ml-3 sidebar-text whitespace-nowrap transition-all duration-300 ${textDisplayClass}">Cotações</span>
