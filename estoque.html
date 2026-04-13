@@ -145,7 +145,7 @@
 
       container.innerHTML = `
         <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             
             <!-- Filtro Nome -->
             <div class="md:col-span-2">
@@ -186,19 +186,7 @@
               </select>
             </div>
 
-            <!-- Filtro Situação -->
-            <div>
-              <label for="filter-status" class="block text-sm font-medium text-gray-700">Situação</label>
-              <select 
-                id="filter-status" 
-                class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-                style="--tw-ring-color: var(--app-accent-color);"
-              >
-                <option value="all">Todas</option>
-                <option value="Ativo">Ativo</option>
-                <option value="Inativo">Inativo</option>
-              </select>
-            </div>
+
 
 
 
@@ -220,7 +208,6 @@
       // Define os valores selecionados nos dropdowns
       document.getElementById('filter-supplier').value = pageState.filters.supplier;
       document.getElementById('filter-category').value = pageState.filters.category;
-      document.getElementById('filter-status').value = pageState.filters.status;
     }
 
     /**
@@ -242,11 +229,6 @@
         renderStockTable();
       });
 
-      document.getElementById('filter-status').addEventListener('change', (e) => {
-        pageState.filters.status = e.target.value;
-        renderStockTable();
-      });
-
       document.getElementById('filter-stock-low').addEventListener('click', () => {
         pageState.filters.stockLow = !pageState.filters.stockLow;
         renderFilters(); // Renderiza os filtros para atualizar a cor do botão
@@ -265,7 +247,7 @@
       renderLoading(container); // Mostra o spinner
 
       const { products } = pageState.appData;
-      const { name, supplier, category, status, stockLow, sort } = pageState.filters;
+      const { name, supplier, category, stockLow, sort } = pageState.filters;
 
       // Aplica filtros
       const filteredProducts = products.filter(product => {
@@ -287,13 +269,10 @@
         const matchCategory = category === 'all' ||
           (product.property_categoria && product.property_categoria.includes(category));
 
-        const matchStatus = status === 'all' ||
-          (product.property_situa_o_do_produto === status);
-
         const matchStockLow = !stockLow ||
           (product.property_a_o_necess_ria === 'COMPRAR'); // Filtra por "Ação Necessária" = COMPRAR
 
-        return matchName && matchSupplier && matchCategory && matchStatus && matchStockLow;
+        return matchName && matchSupplier && matchCategory && matchStockLow;
       });
 
       // Aplica ordenação
