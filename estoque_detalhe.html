@@ -6,9 +6,6 @@
   <title>Detalhe do Estoque - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- Biblioteca de Gráficos (Específica desta página) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
 
@@ -68,10 +65,6 @@
       productHistory: []
     };
     
-    // Variável global para o gráfico, para que possamos destruí-lo
-    let stockChart = null;
-
-
     // --- Funções Principais ---
 
     /**
@@ -104,10 +97,11 @@
         return;
       }
       
-      // 5. Filtra o histórico para este produto
+      // 5. Filtra o histórico para este produto (apenas Entradas)
       pageState.productHistory = pageState.appData.stockHistory
         .filter(item => item.property_produto && item.property_produto.includes(pageState.productId))
-        .sort((a, b) => new Date(a.property_criado_em) - new Date(b.property_criado_em)); // Ordena do mais antigo ao mais novo
+        .filter(item => item.property_movimento === 'Entrada')
+        .sort((a, b) => new Date(b.property_criado_em) - new Date(a.property_criado_em)); // Ordena do mais novo para o mais antigo
 
       // 6. Renderiza componentes estáticos
       renderSidebarNav('estoque'); // Mantém 'Estoque' como ativo
@@ -157,13 +151,9 @@
       container.innerHTML = `
         <div class="space-y-6">
           ${renderProductInfoCard()}
-          ${renderChartCard()}
-          ${renderHistoryTableCard()}
+          ${renderInwardMovementsTableCard()}
         </div>
       `;
-      
-      // Inicializa o gráfico APÓS o <canvas> existir no DOM
-      initStockChart();
     }
     
     /**
@@ -213,64 +203,57 @@
     }
     
     /**
-     * Renderiza o card do Gráfico
+     * Renderiza o card da Tabela de Entradas
      */
-    function renderChartCard() {
-      return `
-        <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
-          <h3 class="text-lg font-bold font-heading mb-4" style="color: ${COLORS.black};">Evolução do Estoque</h3>
-          <div class="h-64 md:h-80">
-            <canvas id="stockChartCanvas"></canvas>
-          </div>
-        </div>
-      `;
-    }
-    
-    /**
-     * Renderiza o card da Tabela de Histórico
-     */
-    function renderHistoryTableCard() {
+    function renderInwardMovementsTableCard() {
       const { productHistory } = pageState;
       
       if (productHistory.length === 0) {
         return `
           <div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">
-            Nenhuma movimentação de estoque encontrada para este produto.
+            Nenhuma entrada de estoque encontrada para este produto.
           </div>
         `;
       }
       
+      const formatCurrency = (val) => val != null ? val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-';
+      
       const tableRows = productHistory.map(item => {
-        const isEntrada = item.property_movimento === 'Entrada';
-        const colorClass = isEntrada ? 'text-green-600' : 'text-red-600';
-        const sign = isEntrada ? '+' : '-';
+        // Cotação: O JSON atual não traz uma chave de identificador de Cotação relacionando aos dados de Cotações diretamente.
+        // Iremos usar o nome que eventualmente carrega informações de vínculo
+        const cotacaoStr = item.property_nome && item.property_nome.trim() !== '' ? item.property_nome : '-';
+        
+        let fornecedorNome = '-';
+        if (item.property_fornecedor && item.property_fornecedor.length > 0) {
+           const sup = pageState.appData.suppliers ? pageState.appData.suppliers.find(s => s.id === item.property_fornecedor[0]) : null;
+           if (sup) fornecedorNome = sup.property_nome;
+        }
+
+        const valorPagoStr = formatCurrency(item.property_pre_o_da_cota_o);
+        const qtdStr = item.property_quantidade != null ? item.property_quantidade : '-';
         
         return `
           <tr>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${formatDate(item.property_criado_em)}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${colorClass}">
-              ${item.property_movimento}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${colorClass}">
-              ${sign}${item.property_quantidade}
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-              ${item.property_origem || 'N/A'}
-            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${cotacaoStr}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fornecedorNome}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">+${qtdStr}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${valorPagoStr}</td>
           </tr>
         `;
       }).join('');
       
       return `
-        <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-hidden">
-          <h3 class="text-lg font-bold font-heading p-6" style="color: ${COLORS.black};">Histórico de Movimentação</h3>
+        <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-auto">
+          <h3 class="text-lg font-bold font-heading p-6" style="color: ${COLORS.black};">Histórico de Entradas</h3>
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Movimento</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data da Entrada</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cotação</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fornecedor</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantidade</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Origem</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Pago</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -301,80 +284,6 @@
           </div>
         `;
       }
-    }
-    
-    /**
-     * Calcula o histórico de estoque e inicializa o gráfico
-     */
-    function initStockChart() {
-      const ctx = document.getElementById('stockChartCanvas');
-      if (!ctx) return;
-      
-      const { product, productHistory } = pageState;
-      
-      // 1. Destruir gráfico anterior (se existir)
-      if (stockChart) {
-        stockChart.destroy();
-      }
-
-      // 2. Calcular o estoque flutuante
-      const labels = [];
-      const data = [];
-      
-      let estoqueFlutuante = product.property_estoque_atual || 0;
-      
-      // 3. Trabalhar do mais recente para o mais antigo para recalcular o passado
-      const historyReversed = [...productHistory].reverse();
-      
-      // Adiciona o ponto "Hoje"
-      labels.push("Hoje");
-      data.push(estoqueFlutuante);
-      
-      for (const item of historyReversed) {
-        const isEntrada = item.property_movimento === 'Entrada';
-        const quantidade = item.property_quantidade || 0;
-        
-        // Se for entrada, subtraímos (pois estamos a ir para trás no tempo)
-        // Se for saída, somamos
-        estoqueFlutuante += isEntrada ? -quantidade : +quantidade;
-        
-        labels.push(formatDate(item.property_criado_em));
-        data.push(estoqueFlutuante);
-      }
-      
-      // 4. Inverter os arrays para o gráfico (do mais antigo ao mais novo)
-      labels.reverse();
-      data.reverse();
-
-      // 5. Criar o gráfico
-      stockChart = new Chart(ctx.getContext('2d'), {
-        type: 'line',
-        data: {
-          labels: labels,
-          datasets: [{
-            label: 'Estoque',
-            data: data,
-            borderColor: COLORS.orange,
-            backgroundColor: 'rgba(255, 78, 0, 0.1)',
-            fill: true,
-            tension: 0.1
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            y: {
-              beginAtZero: false
-            }
-          },
-          plugins: {
-            legend: {
-              display: false
-            }
-          }
-        }
-      });
     }
 
     // --- Inicialização ---
