@@ -297,10 +297,10 @@
             }).filter(obj => obj.quote);
 
             if (filterType === 'open') {
-                const openStatuses = ['Criado', 'Enviado Fornecedor', 'Respondido'];
+                const openStatuses = ['Criado', 'Enviado Fornecedor', 'Respondido', 'Aprovado'];
                 supplierItems = supplierItems.filter(obj => openStatuses.includes(obj.item.property_status));
             } else if (filterType === 'closed') {
-                const closedStatuses = ['Aprovado', 'Rejeitado'];
+                const closedStatuses = ['Pedido Enviado', 'Rejeitado'];
                 supplierItems = supplierItems.filter(obj => closedStatuses.includes(obj.item.property_status));
             }
 
@@ -309,7 +309,18 @@
                 return;
             }
 
+            // Verifica se há itens aprovados para mostrar o botão "Enviar Todos"
+            const approvedItems = supplierItems.filter(obj => obj.item.property_status === 'Aprovado');
+
             container.innerHTML = `
+                ${approvedItems.length > 0 ? `
+                <div class="mb-4 flex justify-end">
+                    <button id="send-all-orders-btn" class="px-4 py-2 bg-green-600 text-white rounded-md font-medium hover:bg-green-700 transition flex items-center space-x-2 shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <span>Enviar Todos os Pedidos Aprovados (${approvedItems.length})</span>
+                    </button>
+                </div>
+                ` : ''}
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                       <thead class="bg-gray-50">
@@ -343,9 +354,10 @@
             if (status === 'Enviado Fornecedor') statusColor = 'bg-blue-100 text-blue-800';
             else if (status === 'Respondido') statusColor = 'bg-yellow-100 text-yellow-800';
             else if (status === 'Aprovado') statusColor = 'bg-green-100 text-green-800';
+            else if (status === 'Pedido Enviado') statusColor = 'bg-indigo-100 text-indigo-800';
             else if (status === 'Rejeitado') statusColor = 'bg-red-100 text-red-800';
 
-            const canEdit = status !== 'Aprovado' && status !== 'Rejeitado';
+            const canEdit = !['Aprovado', 'Rejeitado', 'Pedido Enviado'].includes(status);
 
             return `
               <tr>
@@ -389,7 +401,10 @@
                     ` : ''}
                     <button class="approve-btn px-2 py-1 rounded-md text-white transition-colors text-xs" style="background-color: ${COLORS.blue};" data-item-id="${item.id}" data-quote-id="${quote.id}">Aprovar</button>
                     <button class="reject-btn px-2 py-1 bg-red-600 text-white rounded-md transition-colors text-xs" data-item-id="${item.id}" data-quote-id="${quote.id}">Rejeitar</button>
-                  ` : (status === 'Aprovado' ? '<span class="text-green-600">Aprovado</span>' : '<span class="text-red-600">Rejeitado</span>')}
+                  ` : (status === 'Aprovado' ? 
+                    `<button class="send-order-btn px-2 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-xs" data-item-id="${item.id}" data-quote-id="${quote.id}">Enviar Pedido</button>` : 
+                    (status === 'Pedido Enviado' ? '<span class="text-indigo-600 font-medium">Pedido Enviado</span>' : '<span class="text-red-600">Rejeitado</span>')
+                  )}
                 </td>
                 <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
                   <button class="copy-text-btn p-1.5 rounded-full text-gray-500 hover:bg-gray-100 transition-colors" data-item-id="${item.id}" data-quote-id="${quote.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg></button>
@@ -414,6 +429,12 @@
             document.querySelectorAll('.reject-btn').forEach(btn => btn.addEventListener('click', (e) => handleItemStatusUpdateFornecedor(e.currentTarget.dataset.itemId, 'Rejeitado', e.currentTarget.dataset.quoteId)));
             document.querySelectorAll('.copy-text-btn').forEach(btn => btn.addEventListener('click', handleCopyTextFornecedor));
             document.querySelectorAll('.open-wpp-btn').forEach(btn => btn.addEventListener('click', handleOpenWhatsAppFornecedor));
+            document.querySelectorAll('.send-order-btn').forEach(btn => btn.addEventListener('click', handleSendOrderIndividual));
+
+            const sendAllBtn = document.getElementById('send-all-orders-btn');
+            if (sendAllBtn) {
+                sendAllBtn.addEventListener('click', handleSendAllOrders);
+            }
         }
 
         async function handlePriceSaveFornecedor(event) {
@@ -540,6 +561,104 @@
             }
             const text = encodeURIComponent(getWhatsappTextFornecedor(quote, item));
             window.open(`https://wa.me/${phone.replace(/[\\s\\+\\-\\(\\)]/g, '')}?text=${text}`, '_blank');
+        }
+
+        /**
+         * Gera o texto para enviar ao WhatsApp como PEDIDO
+         */
+        function getPedidoWhatsappTextFornecedor(itemsWithQuotes) {
+            const storeName = localStorage.getItem('N8N_DYNAMIC_STORE_NAME') || 'Curral Burguer';
+            const cnpj = localStorage.getItem('N8N_DYNAMIC_STORE_CNPJ') || '';
+            const today = new Date().toLocaleDateString('pt-BR');
+
+            let text = `PEDIDO - ${storeName} - ${today}\n`;
+            if (cnpj) text += `CNPJ: ${cnpj}\n`;
+            text += `\n`;
+
+            itemsWithQuotes.forEach(obj => {
+                const productName = getProductName(obj.quote.property_produto[0]);
+                const quantidade = obj.quote.property_quantidade || 'N/A';
+                const unidade = (obj.quote.property_unidade_de_medida && obj.quote.property_unidade_de_medida[0]) || '';
+                text += `${productName} - ${quantidade} ${unidade}\n`;
+            });
+
+            return text.trim();
+        }
+
+        async function handleSendOrderIndividual(event) {
+            const btn = event.currentTarget;
+            const itemId = btn.dataset.itemId;
+            const quoteId = btn.dataset.quoteId;
+            const item = pageState.appData.quoteItems.find(i => i.id === itemId);
+            const quote = pageState.appData.quotes.find(q => q.id === quoteId);
+            
+            if (!item || !quote) return;
+
+            // 1. Abre o WhatsApp
+            const phone = pageState.supplier.property_whats_app;
+            if (!phone) {
+                showError("Fornecedor sem WhatsApp.");
+                return;
+            }
+            
+            const text = encodeURIComponent(getPedidoWhatsappTextFornecedor([{ item, quote }]));
+            window.open(`https://wa.me/${phone.replace(/[\\s\\+\\-\\(\\)]/g, '')}?text=${text}`, '_blank');
+
+            // 2. Atualiza status para Pedido Enviado
+            await handleItemStatusUpdateFornecedor(itemId, 'Pedido Enviado', quoteId);
+        }
+
+        async function handleSendAllOrders() {
+            const { appData, supplierId } = pageState;
+            
+            // Filtra itens aprovados para este fornecedor
+            const approvedObjs = appData.quoteItems
+                .filter(item => item.property_fornecedor && item.property_fornecedor.includes(supplierId) && item.property_status === 'Aprovado')
+                .map(item => {
+                    const quote = appData.quotes.find(q => q.property_item && q.property_item.includes(item.id));
+                    return { item, quote };
+                })
+                .filter(obj => obj.quote);
+
+            if (approvedObjs.length === 0) {
+                showFeedback("Nenhum pedido aprovado para enviar.", "info");
+                return;
+            }
+
+            // 1. Abre o WhatsApp com todos os itens
+            const phone = pageState.supplier.property_whats_app;
+            if (!phone) {
+                showError("Fornecedor sem WhatsApp.");
+                return;
+            }
+
+            const text = encodeURIComponent(getPedidoWhatsappTextFornecedor(approvedObjs));
+            window.open(`https://wa.me/${phone.replace(/[\\s\\+\\-\\(\\)]/g, '')}?text=${text}`, '_blank');
+
+            // 2. Atualiza todos os itens para Pedido Enviado (Sequencialmente)
+            showFeedback(`Enviando ${approvedObjs.length} pedidos...`, "info");
+            
+            try {
+                for (const obj of approvedObjs) {
+                    // Atualiza localmente
+                    const idx = appData.quoteItems.findIndex(i => i.id === obj.item.id);
+                    if (idx !== -1) appData.quoteItems[idx].property_status = 'Pedido Enviado';
+                    
+                    // Sincroniza
+                    await updateQuoteItemApi(obj.item.id, { 
+                        price: obj.item.property_preco || 0, 
+                        status: 'Pedido Enviado' 
+                    });
+                }
+                
+                saveAppData(appData);
+                showFeedback("Todos os pedidos foram marcados como enviados!", "success");
+            } catch (error) {
+                showFeedback("Houve um erro ao sincronizar alguns itens.", "warning");
+            } finally {
+                const filterSelect = document.getElementById('quote-status-filter');
+                renderSupplierQuotes(supplierId, filterSelect ? filterSelect.value : 'open');
+            }
         }
 
         /**

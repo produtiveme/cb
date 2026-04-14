@@ -297,11 +297,13 @@ async function setupDynamicUrls(unitAlias) {
 
     const dynamicColor = unitConfig.property_cor_de_destaque || COLORS.orange;
     const dynamicStoreName = unitConfig.property_nome_da_loja || '';
+    const dynamicStoreCnpj = unitConfig.property_cnpj || '';
 
     // Salva no localStorage para persistência entre reloads
     localStorage.setItem('N8N_DYNAMIC_URLS', JSON.stringify(dynamicUrls));
     localStorage.setItem('N8N_DYNAMIC_COLOR', dynamicColor);
     localStorage.setItem('N8N_DYNAMIC_STORE_NAME', dynamicStoreName);
+    localStorage.setItem('N8N_DYNAMIC_STORE_CNPJ', dynamicStoreCnpj);
     
     // Aplica imediatamente em memória
     Object.assign(N8N_URLS, dynamicUrls);
@@ -457,6 +459,7 @@ function clearAppData() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('currentUser');
   localStorage.removeItem('N8N_DYNAMIC_STORE_NAME');
+  localStorage.removeItem('N8N_DYNAMIC_STORE_CNPJ');
   localStorage.removeItem('N8N_DYNAMIC_URLS');
   localStorage.removeItem('N8N_DYNAMIC_COLOR');
 }
