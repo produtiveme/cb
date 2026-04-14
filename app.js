@@ -482,15 +482,9 @@ function getItemById(type, id) {
   const found = appData[type].find(item => String(item.id).trim() === String(id).trim());
   
   if (!found) {
-    const sample = appData[type][0] ? Object.keys(appData[type][0]).join(',') : 'array_vazio';
-    const sampleId = appData[type][0] ? appData[type][0].id : 'N/A';
-    alert(`DEBUG (Por favor tire print disso):
-Não achei o item!
-Tipo: ${type}
-ID Procurado: "${id}"
-Existe no URL? ${window.location.search}
-Amostra de chave do obj 0: ${sample}
-ID do obj 0: "${sampleId}"`);
+    if (type !== 'productSuppliers') {
+       console.warn(`[DEBUG Oculto] Não achei o ${type} com ID: ${id}. Isso significa que ele foi arquivado no Notion ou não veio no carregamento.`);
+    }
   }
   
   return found;
