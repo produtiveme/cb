@@ -343,6 +343,14 @@
 
         // Constrói o HTML da Tabela
         container.innerHTML = `
+          <!-- Legenda de Cores -->
+          <div class="mb-3 flex flex-wrap gap-4 text-xs font-medium text-gray-600">
+            <div class="flex items-center" title="Você preencheu a quantidade, pronto para Cotar Todos"><span class="w-3 h-3 rounded-full bg-orange-100 border border-orange-300 mr-2 shadow-sm"></span>Sendo Cotado Agora</div>
+            <div class="flex items-center" title="Há uma cotação em aberto para este produto"><span class="w-3 h-3 rounded-full bg-yellow-100 border border-yellow-300 mr-2 shadow-sm"></span>Cotação em Aberto</div>
+            <div class="flex items-center" title="Produto precisa ser comprado baseado no estoque mínimo"><span class="w-3 h-3 rounded-full bg-red-50 border border-red-200 mr-2 shadow-sm"></span>Necessário Comprar</div>
+            <div class="flex items-center" title="Nenhuma ação imediata necessária"><span class="w-3 h-3 rounded-full bg-green-50 border border-green-200 mr-2 shadow-sm"></span>Estoque Mantido</div>
+          </div>
+
           <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-auto" style="max-height: calc(100vh - 280px);">
             <table class="min-w-full divide-y divide-gray-200">
               <thead class="bg-gray-50 sticky top-0 z-10">
@@ -366,7 +374,17 @@
 
         // Adiciona listeners aos inputs "Qtde a Cotar"
         document.querySelectorAll('.qtde-input').forEach(input => {
-          input.addEventListener('input', () => {
+          input.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value, 10);
+            const tr = e.target.closest('tr');
+            if (tr) {
+              if (val > 0) {
+                tr.className = 'bg-orange-100 transition-colors duration-200';
+              } else {
+                tr.className = tr.getAttribute('data-base-bg') || '';
+              }
+            }
+
             const anyHasValue = Array.from(document.querySelectorAll('.qtde-input'))
               .some(inp => parseInt(inp.value, 10) > 0);
             pageState.dirtyQuotes = anyHasValue;
@@ -424,8 +442,26 @@
       const status = product.property_situa_o_do_produto || 'Indefinido';
       const statusColorClass = status === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
 
+      // Define a cor de fundo da linha com base nas regras de negócio
+      const hasOpenQuote = pageState.appData.quotes.some(q => 
+        q.property_produto && 
+        q.property_produto.includes(product.id) && 
+        !['Concluído', 'Finalizada'].includes(q.property_status)
+      );
+
+      let rowBgClass = '';
+      if (hasOpenQuote) {
+        rowBgClass = 'bg-yellow-100 hover:bg-yellow-200 transition-colors duration-200';
+      } else if (acaoNecessaria === 'COMPRAR') {
+        rowBgClass = 'bg-red-50 hover:bg-red-100 transition-colors duration-200';
+      } else if (acaoNecessaria === 'MANTIDO') {
+        rowBgClass = 'bg-green-50 hover:bg-green-100 transition-colors duration-200';
+      } else {
+        rowBgClass = 'hover:bg-gray-50 transition-colors duration-200'; // Default
+      }
+
       return `
-        <tr>
+        <tr id="row-${product.id}" class="${rowBgClass}" data-base-bg="${rowBgClass}">
           <!-- Nome do Produto (Link) -->
           <td class="px-6 py-4 whitespace-nowrap">
             <div class="flex flex-col">
