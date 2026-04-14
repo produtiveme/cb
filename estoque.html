@@ -68,6 +68,7 @@
     // --- Estado da Página ---
     const pageState = {
       appData: null,
+      dirtyQuotes: false,
       filters: {
         name: '',
         supplier: 'all',
@@ -113,6 +114,14 @@
 
       // 6. Adiciona listeners de eventos (só depois que os filtros existirem)
       addEventListeners();
+
+      // Listener global para evitar perda de dados
+      window.addEventListener('beforeunload', (e) => {
+        if (pageState.dirtyQuotes) {
+          e.preventDefault();
+          e.returnValue = ''; // Exibirá um pop-up de confirmação do browser
+        }
+      });
     }
 
     /**
@@ -144,8 +153,19 @@
         .join('');
 
       container.innerHTML = `
+        <!-- Barra de Progresso Oculta -->
+        <div id="quote-progress-container" class="hidden mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span id="quote-progress-text" class="font-medium">Iniciando processamento...</span>
+          </div>
+        </div>
+
         <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
             
             <!-- Filtro Nome -->
             <div class="md:col-span-2">
@@ -201,6 +221,17 @@
               </button>
             </div>
 
+            <!-- Botão Cotar Todos -->
+            <div class="md:col-span-1">
+              <button 
+                id="btn-cotar-todos"
+                class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium transition-colors text-white hover:opacity-90"
+                style="background-color: var(--app-accent-color);"
+              >
+                Cotar Todos
+              </button>
+            </div>
+
           </div>
         </div>
       `;
@@ -235,6 +266,11 @@
         renderStockTable(); // Renderiza a tabela
         addEventListeners(); // Re-adiciona os listeners
       });
+
+      const btnCotarTodos = document.getElementById('btn-cotar-todos');
+      if (btnCotarTodos) {
+        btnCotarTodos.addEventListener('click', handleCotarTodos);
+      }
     }
 
     /**
@@ -318,7 +354,7 @@
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comprar</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ação Necessária</th>
                   <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Situação</th>
-                  <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                  <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qtde a Cotar</th>
                 </tr>
               </thead>
               <tbody class="bg-white divide-y divide-gray-200">
@@ -328,9 +364,13 @@
           </div>
         `;
 
-        // Adiciona listeners aos botões "Cotar"
-        document.querySelectorAll('.cotar-btn').forEach(btn => {
-          btn.addEventListener('click', (e) => handleCreateQuote(e.target.dataset.id));
+        // Adiciona listeners aos inputs "Qtde a Cotar"
+        document.querySelectorAll('.qtde-input').forEach(input => {
+          input.addEventListener('input', () => {
+            const anyHasValue = Array.from(document.querySelectorAll('.qtde-input'))
+              .some(inp => parseInt(inp.value, 10) > 0);
+            pageState.dirtyQuotes = anyHasValue;
+          });
         });
 
       }, 100); // Atraso de 100ms
@@ -437,197 +477,234 @@
             </span>
           </td>
 
-          <!-- Ações -->
+          <!-- Qtde a Cotar -->
           <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-            <button
-              class="cotar-btn px-3 py-1 rounded-md text-white transition-colors"
-              style="background-color: #6B9E83;"
+            <input 
+              type="number" 
+              min="0"
+              class="qtde-input block w-24 ml-auto px-2 py-1 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
+              style="--tw-ring-color: var(--app-accent-color);"
+              placeholder="0"
               data-id="${product.id}"
             >
-              Cotar
-            </button>
           </td>
         </tr>
       `;
     }
 
     /**
-     * Lida com o clique no botão "Cotar"
+     * Lida com o processamento do lote de cotações
      */
-    async function handleCreateQuote(productId) {
+    async function handleCotarTodos() {
       const { appData } = pageState;
 
-      const product = getProductById(productId);
-      if (!product) {
-        showError("Produto não encontrado.");
+      // 1. Busca todos os inputs preenchidos com qtde > 0
+      const inputs = document.querySelectorAll('.qtde-input');
+      const itemsToQuote = [];
+      
+      inputs.forEach(input => {
+        const qty = parseInt(input.value, 10);
+        if (!isNaN(qty) && qty > 0) {
+          itemsToQuote.push({
+            productId: input.dataset.id,
+            quantity: qty,
+            inputElement: input
+          });
+        }
+      });
+
+      if (itemsToQuote.length === 0) {
+        showError("Preencha a quantidade a cotar de pelo menos um produto na tabela.");
         return;
       }
 
-      // 0. Regra de Negócio: Cotação Única (RN-003)
-      // Verifica se já existe uma cotação em aberto para este produto
-      const openQuote = appData.quotes.find(q =>
-        q.property_produto &&
-        q.property_produto.includes(productId) &&
-        !['Concluído', 'Finalizada'].includes(q.property_status)
-      );
+      // 2. Prepara validações base
+      const validItems = [];
+      const validationErrors = [];
 
-      if (openQuote) {
-        showError(`Já existe uma cotação em aberto (${openQuote.property_nome}) para este produto. Finalize-a antes de criar uma nova.`);
-        return;
+      for (const item of itemsToQuote) {
+        const product = getProductById(item.productId);
+        if (!product) continue;
+
+        const openQuote = appData.quotes.find(q =>
+          q.property_produto &&
+          q.property_produto.includes(item.productId) &&
+          !['Concluído', 'Finalizada'].includes(q.property_status)
+        );
+
+        if (openQuote) {
+          validationErrors.push(`O produto ${product.property_nome} já possui cotação aberta (${openQuote.property_nome}).`);
+          continue; // Ignora este item, mas não para o processo total
+        }
+
+        const productSuppliers = appData.productSuppliers.filter(
+          ps => ps.property_produto.includes(item.productId)
+        );
+        const supplierIds = productSuppliers.map(ps => ps.property_fornecedor && ps.property_fornecedor[0]).filter(id => id);
+        const uniqueSupplierIds = [...new Set(supplierIds)];
+
+        if (uniqueSupplierIds.length === 0) {
+          validationErrors.push(`O produto ${product.property_nome} não possui fornecedores cadastrados.`);
+          continue;
+        }
+
+        validItems.push({
+          ...item,
+          product,
+          uniqueSupplierIds
+        });
       }
 
-      // 1. Encontrar fornecedores para este produto
-      const productSuppliers = appData.productSuppliers.filter(
-        ps => ps.property_produto.includes(productId)
-      );
-
-      const supplierIds = productSuppliers.map(ps => ps.property_fornecedor[0]);
-      const uniqueSupplierIds = [...new Set(supplierIds)];
-
-      // 2. Regra de Negócio: Sem fornecedores
-      if (uniqueSupplierIds.length === 0) {
-        showError(`Produto "${product.property_nome}" não possui fornecedores cadastrados. Cotação não pode ser criada.`);
-        return;
+      if (validationErrors.length > 0) {
+        // Se houver erros, exibimos mas deixamos seguir com os válidos caso existam
+        showError("Atenção: Alguns itens não podem ser cotados e foram ignorados:\n- " + validationErrors.join("\n- "));
+        if (validItems.length === 0) return;
       }
 
-      // 3. Regra de Negócio: Confirmação
-      const estoqueAtual = product.property_estoque_atual || 0;
-      const unidadeMedida = product.property_unidade_de_medida || 'Unidade';
-
+      // 3. Confirmar a Ação
       const messageHtml = `
-        <p>Tem certeza que quer gerar uma nova cotação para o produto <strong>${product.property_nome}</strong>?</p>
-        <p class="text-sm text-gray-500 mt-2">
-          O estoque atual é de <strong>${estoqueAtual} ${unidadeMedida}</strong>.
-          <br>
-          A cotação será criada para <strong>${uniqueSupplierIds.length}</strong> fornecedor(es).
-        </p>
-        
-        <!-- Input de Quantidade -->
-        <div class="mt-4">
-          <label for="quote-quantity" class="block text-sm font-medium text-gray-700">
-            Quantidade a Cotar (em ${unidadeMedida})
-          </label>
-          <input 
-            type="number" 
-            id="quote-quantity" 
-            value="1" 
-            min="1"
-            class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2"
-            style="--tw-ring-color: var(--app-accent-color);"
-            required
-          >
-          <p id="quote-quantity-error" class="hidden text-xs text-red-500 mt-1">A quantidade deve ser maior que 0.</p>
-        </div>
+        <p>Você selecionou <strong>${validItems.length}</strong> produto(s) para cotar.</p>
+        <p class="text-sm text-gray-500 mt-2">Deseja prosseguir com a criação das cotações no sistema?</p>
       `;
 
       showConfirmationModal({
-        title: "Confirmar Nova Cotação",
+        title: "Confirmar Criação em Lote",
         messageHtml: messageHtml,
-        confirmText: "Confirmar e Criar",
+        confirmText: "Iniciar Processamento",
         cancelText: "Cancelar",
-        asyncAction: async () => {
-          // Esta função é executada quando o usuário clica em "Confirmar"
-
-          // 4. Validar e obter a quantidade
-          const quantityInput = document.getElementById('quote-quantity');
-          const quantityError = document.getElementById('quote-quantity-error');
-          const quantity = parseInt(quantityInput.value, 10);
-
-          if (isNaN(quantity) || quantity <= 0) {
-            quantityInput.classList.add('border-red-500'); // Adiciona borda vermelha
-            if (quantityError) quantityError.classList.remove('hidden'); // Mostra erro
-            // Lança um erro para impedir o modal de fechar
-            throw new Error("A quantidade deve ser um número maior que zero.");
+        asyncAction: () => {
+          
+          const totalItems = validItems.length;
+          const progressContainer = document.getElementById('quote-progress-container');
+          const progressText = document.getElementById('quote-progress-text');
+          const btnCotarTodos = document.getElementById('btn-cotar-todos');
+          
+          if (progressContainer) progressContainer.classList.remove('hidden');
+          if (btnCotarTodos) {
+            btnCotarTodos.disabled = true;
+            btnCotarTodos.style.opacity = '0.5';
           }
 
-          // Se a validação passar, remove o erro (caso exista)
-          quantityInput.classList.remove('border-red-500');
-          if (quantityError) quantityError.classList.add('hidden');
+          // Executa em background para que o modal possa fechar imediatamente
+          (async () => {
+            let successCount = 0;
+            let errorCount = 0;
 
-          // 5. Gerar a nova cotação e itens (localmente)
-          const lastQuote = appData.quotes.length > 0 ?
-            appData.quotes.reduce((a, b) => {
-              const numA = parseInt(a.property_nome.split('-')[1]);
-              const numB = parseInt(b.property_nome.split('-')[1]);
-              return numA > numB ? a : b;
-            }) : { property_nome: 'COT-0' };
+            // 4. Processar cada produto
+            for (let i = 0; i < totalItems; i++) {
+              const item = validItems[i];
+              progressText.innerText = `Processando ${i + 1} de ${totalItems} cotações...`;
 
-          const lastQuoteNum = parseInt(lastQuote.property_nome.split('-')[1]);
-          const newQuoteNum = (lastQuoteNum + 1).toString().padStart(3, '0');
-          const newQuoteName = `COT-${newQuoteNum}`;
+              const unidadeMedida = item.product.property_unidade_de_medida || 'Unidade';
 
-          const newQuoteId = crypto.randomUUID();
+              const lastQuote = appData.quotes.length > 0 ?
+                appData.quotes.reduce((a, b) => {
+                  const numA = parseInt(a.property_nome.split('-')[1]) || 0;
+                  const numB = parseInt(b.property_nome.split('-')[1]) || 0;
+                  return numA > numB ? a : b;
+                }) : { property_nome: 'COT-0' };
 
-          const newQuote = {
-            id: newQuoteId,
-            property_nome: newQuoteName,
-            property_status: "Rascunho",
-            property_produto: [productId],
-            property_quantidade: quantity, // Quantidade do input
-            property_unidade_de_medida: [unidadeMedida], // Unidade de medida
-            property_item: [], // Será preenchido abaixo
-            url: "#" // URL local temporária
-          };
+              const lastQuoteNum = parseInt(lastQuote.property_nome.split('-')[1]) || 0;
+              const newQuoteNum = (lastQuoteNum + 1).toString().padStart(3, '0');
+              const newQuoteName = `COT-${newQuoteNum}`;
 
-          const newItems = [];
+              const newQuoteId = crypto.randomUUID();
 
-          let lastItemNum = appData.quoteItems.length > 0 ?
-            appData.quoteItems.reduce((a, b) => {
-              const numA = parseInt(a.property_nome);
-              const numB = parseInt(b.property_nome);
-              return (numA || 0) > (numB || 0) ? a : b;
-            }) : { property_nome: '0' };
+              const newQuote = {
+                id: newQuoteId,
+                property_nome: newQuoteName,
+                property_status: "Rascunho",
+                property_produto: [item.productId],
+                property_quantidade: item.quantity,
+                property_unidade_de_medida: [unidadeMedida],
+                property_item: [],
+                url: "#"
+              };
 
-          let currentItemNum = parseInt(lastItemNum.property_nome || '0');
+              const newItems = [];
+              let lastItemNum = appData.quoteItems.length > 0 ?
+                appData.quoteItems.reduce((a, b) => {
+                  const numA = parseInt(a.property_nome) || 0;
+                  const numB = parseInt(b.property_nome) || 0;
+                  return numA > numB ? a : b;
+                }) : { property_nome: '0' };
 
-          for (const supplierId of uniqueSupplierIds) {
-            currentItemNum++;
-            const newItemId = crypto.randomUUID();
-            const newItem = {
-              id: newItemId,
-              property_nome: currentItemNum.toString().padStart(3, '0'),
-              property_status: "Criado",
-              property_fornecedor: [supplierId],
-              property_cota_o: [newQuoteId],
-              property_preco: 0,
-              url: "#"
-            };
+              let currentItemNum = parseInt(lastItemNum.property_nome || '0', 10);
 
-            newItems.push(newItem);
-            newQuote.property_item.push(newItemId); // Liga o item à cotação
-          }
+              for (const supplierId of item.uniqueSupplierIds) {
+                currentItemNum++;
+                const newItemId = crypto.randomUUID();
+                const newItem = {
+                  id: newItemId,
+                  property_nome: currentItemNum.toString().padStart(3, '0'),
+                  property_status: "Criado",
+                  property_fornecedor: [supplierId],
+                  property_cota_o: [newQuoteId],
+                  property_preco: 0,
+                  url: "#"
+                };
+                newItems.push(newItem);
+                newQuote.property_item.push(newItemId);
+              }
 
-          // 6. Preparar Payload para o N8N
-          const payload = {
-            cotacao: {
-              property_nome: newQuote.property_nome,
-              property_status: newQuote.property_status,
-              property_produto: newQuote.property_produto,
-              property_quantidade: newQuote.property_quantidade,
-              property_unidade_de_medida: newQuote.property_unidade_de_medida,
-              id_local: newQuote.id // Envia ID local
-            },
-            itens: newItems.map(item => ({
-              property_nome: item.property_nome,
-              property_status: item.property_status,
-              property_fornecedor: item.property_fornecedor,
-              property_preco: item.property_preco,
-              id_local: item.id // Envia ID local
-            }))
-          };
+              const payload = {
+                cotacao: {
+                  property_nome: newQuote.property_nome,
+                  property_status: newQuote.property_status,
+                  property_produto: newQuote.property_produto,
+                  property_quantidade: newQuote.property_quantidade,
+                  property_unidade_de_medida: newQuote.property_unidade_de_medida,
+                  id_local: newQuote.id
+                },
+                itens: newItems.map(it => ({
+                  property_nome: it.property_nome,
+                  property_status: it.property_status,
+                  property_fornecedor: it.property_fornecedor,
+                  property_preco: it.property_preco,
+                  id_local: it.id
+                }))
+              };
 
-          // 7. Enviar para o N8N (o modal mostrará o spinner)
-          // A função postApi já está configurada para lançar erro
-          await postApi(N8N_URLS.createQuote, payload);
+              try {
+                await postApi(N8N_URLS.createQuote, payload);
+                // Sucesso no N8N
+                appData.quotes.push(newQuote);
+                appData.quoteItems.push(...newItems);
+                
+                item.inputElement.value = ''; // Limpa em caso de sucesso
+                
+                // Re-avalia o status de dirtyQuotes após cada sucesso para o navegador saber se pode sair
+                pageState.dirtyQuotes = Array.from(document.querySelectorAll('.qtde-input'))
+                  .some(inp => parseInt(inp.value, 10) > 0);
 
-          // 8. Se o N8N deu certo, salvar localmente
-          appData.quotes.push(newQuote);
-          appData.quoteItems.push(...newItems);
-          saveAppData(appData);
+                successCount++;
+              } catch (error) {
+                errorCount++;
+                showError(`Falha ao processar cotação para ${item.product.property_nome}: ${error.message}`);
+                // Não limpar o input de qtde para o usuário poder tentar novamente
+              }
+            }
 
-          // 9. Feedback de sucesso e redirecionamento
-          showFeedback("Cotação criada com sucesso!", "success");
-          window.location.href = `cotacao_detalhe.html?id=${newQuoteId}`;
+            saveAppData(appData);
+
+            // 5. Finalizar processamento
+            if (progressContainer) progressContainer.classList.add('hidden');
+            if (btnCotarTodos) {
+              btnCotarTodos.disabled = false;
+              btnCotarTodos.style.opacity = '1';
+            }
+            
+            if (successCount > 0 && errorCount === 0) {
+              let redirect = confirm(`Sucesso! ${successCount} cotação(ões) processada(s) corretamente. Deseja ir para a tela de Cotações agora?`);
+              if (redirect) {
+                window.location.href = 'cotacoes.html';
+              }
+            } else if (successCount > 0 && errorCount > 0) {
+              showError(`Cotações parcialmente processadas. ${successCount} originadas, mas ${errorCount} falharam. Os itens que falharam ainda estão preenchidos na tabela.`);
+            } else if (successCount === 0 && errorCount > 0) {
+              showError("Falha na criação de todas as cotações desejadas. Tente novamente mais tarde.");
+            }
+          })();
         }
       });
     }
