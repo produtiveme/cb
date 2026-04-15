@@ -169,29 +169,25 @@
         </div>
       `;
 
-      // --- Subtítulo do Cabeçalho ---
-      const subtitle = `
-        <span>Produto: <strong>${productName}</strong></span>
-        <span class="mx-2">|</span>
-        <span>Qtd: <strong>${quantidade} ${unidade}</strong></span>
-        <span class="mx-2">|</span>
-        <span>Status: <span class="px-2 py-0.5 text-xs font-semibold rounded-full ${statusColor}">${status}</span></span>
-      `;
-
       // Renderiza Cabeçalho
       renderScreenHeader(
         `Detalhes: ${quote.property_nome}`,
-        subtitle,
+        '', // Subtítulo vazio pois agora temos o card de resumo
         headerButtons
       );
 
-      // --- Renderiza Conteúdo (Tabela de Itens) ---
+      // --- Renderiza Conteúdo ---
       if (quoteItems.length === 0) {
-        container.innerHTML = `<div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">Nenhum item encontrado para esta cotação.</div>`;
+        container.innerHTML = `
+          ${renderQuoteInfoCard(quote)}
+          <div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">Nenhum item encontrado para esta cotação.</div>
+        `;
         return;
       }
 
       container.innerHTML = `
+        ${renderQuoteInfoCard(quote)}
+
         <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-hidden">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
@@ -340,6 +336,64 @@
     }
 
     /**
+     * Renderiza o card de Informações da Cotação
+     */
+    function renderQuoteInfoCard(quote) {
+      const productName = getProductName(quote.property_produto[0]);
+      const quantidade = quote.property_quantidade || 'N/A';
+      const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
+      const dataCriacao = quote.property_criado_em ? formatDate(quote.property_criado_em) : 'N/A';
+
+      const status = quote.property_status || 'Indefinido';
+      let statusColor = 'bg-gray-100 text-gray-800'; 
+
+      switch (status) {
+        case 'Aguardando':
+          statusColor = 'bg-yellow-100 text-yellow-800';
+          break;
+        case 'Concluído': 
+        case 'Finalizada':
+          statusColor = 'bg-green-100 text-green-800';
+          break;
+      }
+
+      return `
+        <div class="bg-white p-6 rounded-lg shadow border border-gray-200 mb-6 font-sans">
+          <div class="flex items-center justify-between mb-4">
+             <h3 class="text-lg font-bold font-heading" style="color: ${COLORS.black};">Resumo da Cotação</h3>
+             <span class="px-3 py-1 text-xs font-semibold rounded-full ${statusColor}">${status}</span>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <!-- Produto -->
+            <div>
+              <label class="block text-sm font-medium text-gray-500">Produto</label>
+              <p class="mt-1 text-base text-gray-900 font-medium">${productName}</p>
+            </div>
+            
+            <!-- Quantidade -->
+            <div>
+              <label class="block text-sm font-medium text-gray-500">Quantidade</label>
+              <p class="mt-1 text-base text-gray-900 font-medium">${quantidade} ${unidade}</p>
+            </div>
+            
+            <!-- Data de Criação -->
+            <div>
+              <label class="block text-sm font-medium text-gray-500">Data de Criação</label>
+              <p class="mt-1 text-base text-gray-900 font-medium">${dataCriacao}</p>
+            </div>
+
+            <!-- ID / Ref -->
+            <div>
+              <label class="block text-sm font-medium text-gray-500">Referência</label>
+              <p class="mt-1 text-base text-gray-900 font-medium">${quote.property_nome || 'N/A'}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    /**
      * Renderiza o card de Ações da Cotação (Botão Finalizar)
      */
     function renderQuoteActionsCard(quote, items) {
@@ -353,7 +407,15 @@
           <h3 class="text-lg font-bold font-heading mb-4" style="color: ${COLORS.black};">Ações da Cotação</h3>
           
           <div class="flex flex-col md:flex-row gap-4">
-            <!-- Botão de WhatsApp global REMOVIDO -->
+            <!-- Abrir no Notion -->
+            <a 
+              href="${quote.url}" 
+              target="_blank" 
+              class="flex-1 px-4 py-3 rounded-md text-white font-medium transition-colors text-center"
+              style="background-color: ${COLORS.blue};"
+            >
+              Abrir no Notion
+            </a>
             
             <!-- Finalizar Cotação -->
             <button 

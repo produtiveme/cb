@@ -1,7 +1,7 @@
 // --- APP CORE: Funções e Configurações Compartilhadas ---
 
 // --- 1. CONFIGURAÇÃO ---
-const APP_VERSION = '2.15.0';
+const APP_VERSION = '2.20.0';
 
 // Paleta de Cores (Baseada na Identidade Visual)
 const COLORS = {
