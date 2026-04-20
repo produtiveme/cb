@@ -157,14 +157,25 @@
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${productCount} produtos vinculados</td>
               <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                 ${hasPending ? `
-                  <button 
-                    class="batch-send-btn px-3 py-1 rounded-md text-white transition-colors hover:opacity-90"
-                    style="background-color: #25D366;"
-                    data-supplier-id="${supplier.id}"
-                    title="Enviar ${pendingItems.length} itens pendentes via WhatsApp"
-                  >
-                    Enviar Pendências (${pendingItems.length})
-                  </button>
+                  <div class="flex items-center justify-end space-x-2">
+                    <button 
+                      class="batch-copy-btn px-3 py-1 rounded-md bg-gray-100 text-gray-700 transition-colors hover:bg-gray-200 flex items-center space-x-1"
+                      data-supplier-id="${supplier.id}"
+                      title="Copiar texto para envio manual"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                      <span>Copiar Manual</span>
+                    </button>
+                    <button 
+                      class="batch-send-btn px-3 py-1 rounded-md text-white transition-colors hover:opacity-90 flex items-center space-x-1"
+                      style="background-color: #25D366;"
+                      data-supplier-id="${supplier.id}"
+                      title="Enviar ${pendingItems.length} itens pendentes via WhatsApp"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413 0 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.451-4.437-9.887-9.888-9.888-5.451 0-9.887 4.434-9.889 9.888.001 2.228.651 4.385 1.849 6.206l-.341 1.246 1.267-.328zM9.06 8.076C8.86 7.633 8.56 7.534 8.29 7.522c-.258-.011-.532-.011-.79-.011-.315 0-.715.116-1.091.554-.42.472-.647 1.05-.67 1.121-.023.07-.442 1.134.214 2.309.615 1.09 1.575 2.158 3.48 3.868 2.16 1.916 3.326 2.486 4.36 2.977 1.537.731 2.265.628 2.91.39 1.004-.37 2.06-.213 2.06-.213s.442-.04 1.002-.685c.56-.645.56-.998.51-.998s-.442-.212-1.002-.472c-.56-.26-1.002-.37-1.122-.37-.12 0-.26 0-.37.212-.12.213-.47.561-.68.731-.21.17-.42.213-.64.09-.26-.12-.47-.213-1.002-.472-1.346-.645-2.16-1.031-2.68-1.804-.37-.645-.04-1.002.12-1.122.12-.12.26-.26.37-.37.12-.12.21-.213.3-.37.12-.17.04-.42 0-.645-.04-.213-.56-1.346-.73-1.804z"/></svg>
+                      <span>Enviar WhatsApp (${pendingItems.length})</span>
+                    </button>
+                  </div>
                 ` : ''}
                 <a 
                   href="${supplier.url}" 
@@ -202,7 +213,77 @@
           btn.addEventListener('click', handleBatchSend);
         });
 
+        document.querySelectorAll('.batch-copy-btn').forEach(btn => {
+          btn.addEventListener('click', handleBatchCopy);
+        });
+
       }, 100);
+    }
+
+    /**
+     * Gera o texto da mensagem para envio em massa de pendências
+     */
+    function getBatchWhatsappText(supplier, pendingItems) {
+      // Agrupa itens por Cotação
+      const itemsByQuote = {};
+      pendingItems.forEach(item => {
+        const quoteIdList = item.property_cota_o || item.property_cotacao;
+        const quoteId = (quoteIdList && quoteIdList.length > 0) ? quoteIdList[0] : 'unknown';
+
+        if (!itemsByQuote[quoteId]) {
+          itemsByQuote[quoteId] = [];
+        }
+        itemsByQuote[quoteId].push(item);
+      });
+
+      // Gera a mensagem
+      let text = `Olá, ${supplier.property_nome}!\n`;
+      const storeName = localStorage.getItem('N8N_DYNAMIC_STORE_NAME') || 'Curral Burguer';
+      text += `Gostaria de solicitar cotação para o ${storeName}:\n\n`;
+
+      Object.keys(itemsByQuote).forEach(quoteId => {
+        const quote = getQuoteById(quoteId);
+        const quoteName = quote ? quote.property_nome : '(Cotação sem ref)';
+
+        itemsByQuote[quoteId].forEach(item => {
+          let itemDescription = '';
+
+          if (quote) {
+            const productName = getProductName(quote.property_produto[0]);
+            const quantidade = quote.property_quantidade || '?';
+            const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
+
+            itemDescription = `📦 *${productName}*\nQtd: ${quantidade} ${unidade}\n(Ref: ${quoteName})`;
+          }
+
+          text += `- ${itemDescription}\n`;
+        });
+        text += `\n`;
+      });
+
+      text += `Aguardo retorno. Obrigado!`;
+      return text;
+    }
+
+    /**
+     * Lida com a cópia do texto em massa
+     */
+    function handleBatchCopy(event) {
+      const supplierId = event.currentTarget.dataset.supplierId;
+      const supplier = pageState.suppliers.find(s => s.id === supplierId);
+      if (!supplier) return;
+
+      const pendingItems = getPendingItemsForSupplier(supplierId);
+      if (pendingItems.length === 0) return;
+
+      const text = getBatchWhatsappText(supplier, pendingItems);
+      
+      navigator.clipboard.writeText(text).then(() => {
+        showFeedback("Texto copiado para envio manual!", "success");
+      }).catch(err => {
+        console.error("Erro ao copiar:", err);
+        showError("Falha ao copiar texto.");
+      });
     }
 
     /**
@@ -231,53 +312,10 @@
       }
       const cleanPhone = phone.replace(/[\s\+\-\(\)]/g, '');
 
-      // 2. Agrupa itens por Cotação
-      const itemsByQuote = {};
-      pendingItems.forEach(item => {
-        // Tenta encontrar a propriedade correta (pode variar dependendo do N8N)
-        const quoteIdList = item.property_cota_o || item.property_cotacao;
-        const quoteId = (quoteIdList && quoteIdList.length > 0) ? quoteIdList[0] : 'unknown';
+      // 2. Gera a mensagem
+      const text = getBatchWhatsappText(supplier, pendingItems);
 
-        if (!itemsByQuote[quoteId]) {
-          itemsByQuote[quoteId] = [];
-        }
-        itemsByQuote[quoteId].push(item);
-      });
-
-      // 3. Gera a mensagem
-      let text = `Olá, ${supplier.property_nome}!\n`;
-      text += `Gostaria de solicitar cotação para:\n\n`;
-
-      Object.keys(itemsByQuote).forEach(quoteId => {
-        const quote = getQuoteById(quoteId);
-        const quoteName = quote ? quote.property_nome : '(Cotação sem ref)';
-
-        itemsByQuote[quoteId].forEach(item => {
-          let itemDescription = '';
-
-          if (quote) {
-            const productName = getProductName(quote.property_produto[0]);
-            const quantidade = quote.property_quantidade || '?';
-            const unidade = (quote.property_unidade_de_medida && quote.property_unidade_de_medida[0]) || '';
-
-            // Novo Formato:
-            // 📦 *Produto*
-            // Qtd: 10 Unidade
-            // (Ref: COT-001)
-            itemDescription = `📦 *${productName}*\nQtd: ${quantidade} ${unidade}\n(Ref: ${quoteName})`;
-          } else {
-            // Se não achou a cotação, tenta mostrar algo útil do item se possível
-            console.warn('Item sem cotação pai encontrada:', item);
-          }
-
-          text += `- ${itemDescription}\n`;
-        });
-        text += `\n`;
-      });
-
-      text += `Aguardo retorno. Obrigado!`;
-
-      // 4. Abre WhatsApp
+      // 3. Abre WhatsApp
       const encodedText = encodeURIComponent(text);
       const url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
       window.open(url, '_blank');
