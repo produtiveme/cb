@@ -369,7 +369,7 @@
         /**
          * Renderiza a linha oculta de comparativo de preços com concorrentes
          */
-        function renderCompetitorRowHtml(item, comp) {
+        function renderCompetitorRowHtml(item, comp, quote) {
             if (!comp || comp.competitors.length === 0) return '';
             const medals = ['🥇', '🥈', '🥉'];
             const rows = comp.competitors.map((c, idx) => {
@@ -384,9 +384,10 @@
             const unpricedNote = comp.hasOtherUnpriced
                 ? `<div class="mt-2 text-xs text-amber-600 bg-amber-50 rounded p-2">⚠️ ${comp.totalItems - comp.pricedTotal} fornecedor(es) desta cotação ainda não informaram o preço.</div>`
                 : '';
+            const quoteName = (quote && quote.property_nome) ? ` — ${quote.property_nome}` : '';
             return `<tr id="competitor-row-${item.id}" class="hidden">
                 <td colspan="6" class="px-10 py-3 bg-gray-50 border-t border-gray-100">
-                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Comparativo de Preços — ${quote.property_nome}</p>
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Comparativo de Preços${quoteName}</p>
                     <div class="max-w-md space-y-0.5">${rows}</div>
                     ${unpricedNote}
                 </td>
@@ -522,7 +523,7 @@
             const priceBadgeHtml = renderPriceBadgeHtml(comp);
             const hasCompetitors = comp && comp.competitors.length > 0;
             const toggleBtnHtml = hasCompetitors ? `<button class="toggle-competitors-btn mt-1 text-xs text-blue-500 hover:text-blue-700 transition-colors flex items-center gap-0.5" data-item-id="${item.id}">Ver concorrentes <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></button>` : '';
-            const competitorRowHtml = renderCompetitorRowHtml(item, comp);
+            const competitorRowHtml = renderCompetitorRowHtml(item, comp, quote);
 
             return `
               <tr class="${rowBgColor} transition-colors duration-200">
