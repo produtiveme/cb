@@ -56,6 +56,8 @@
             getSupplierById,
             getProductName,
             updateQuoteItemApi,
+            formatCurrency,
+            parseCurrency,
             COLORS
         } from './app.js';
 
@@ -219,6 +221,17 @@
           </div>
           <div id="supplier-quotes-container"></div>
         </div>
+
+        <!-- Barra de Progresso de Cotação (Oculta por padrão) -->
+        <div id="quote-progress-container" class="hidden fixed bottom-6 right-6 z-50 w-full max-w-sm p-4 bg-white rounded-lg shadow-2xl border border-blue-200 text-blue-800 animate-slide-up">
+          <div class="flex items-center space-x-3">
+            <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span id="quote-progress-text" class="font-medium text-sm">Processando...</span>
+          </div>
+        </div>
       `;
             
             // Renderiza as cotações imediatamente após injetar o innerHTML
@@ -325,6 +338,16 @@
                     </button>
                 </div>
                 ` : ''}
+
+                <!-- Botão Atualizar Todos os Preços -->
+                <div class="mb-4 flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <span class="text-xs text-gray-500 italic">* Preencha os preços e clique no botão para salvar tudo de uma vez.</span>
+                    <button id="update-all-prices-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition flex items-center space-x-2 shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        <span>Atualizar todos os preços</span>
+                    </button>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                       <thead class="bg-gray-50">
@@ -393,13 +416,11 @@
                 <td class="px-4 py-4 whitespace-nowrap">
                   <div class="flex items-center space-x-2">
                     <input 
-                      type="number" 
-                      class="price-input w-24 px-2 py-1 bg-white border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2"
+                      type="text" 
+                      class="price-input w-28 px-2 py-1 bg-white border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-2"
                       style="--tw-ring-color: var(--app-accent-color);"
-                      value="${preco === 0 ? '' : preco}"
-                      placeholder="0,00"
-                      step="0.01"
-                      min="0"
+                      value="${preco === 0 ? '' : formatCurrency(preco)}"
+                      placeholder="R$ 0,00"
                       data-item-id="${item.id}"
                       ${canEdit ? '' : 'disabled'}
                     >
@@ -434,6 +455,7 @@
         function addSupplierQuoteListeners() {
             document.querySelectorAll('.price-input').forEach(input => {
                 input.addEventListener('input', (e) => {
+                    handlePriceMask(e); // Aplica máscara
                     const itemId = e.target.dataset.itemId;
                     const saveBtn = document.querySelector(`.save-price-btn[data-item-id="${itemId}"]`);
                     if (saveBtn) saveBtn.classList.remove('hidden');
@@ -457,15 +479,37 @@
             if (copyAllBtn) {
                 copyAllBtn.addEventListener('click', handleCopyAllOrders);
             }
+
+            const updateAllBtn = document.getElementById('update-all-prices-btn');
+            if (updateAllBtn) {
+                updateAllBtn.addEventListener('click', handleUpdateAllPrices);
+            }
+        }
+
+        /**
+         * Máscara de moeda em tempo real
+         */
+        function handlePriceMask(event) {
+            let value = event.target.value;
+            
+            // Remove tudo que não é número
+            value = value.replace(/\D/g, "");
+            
+            // Converte para decimal
+            const options = { minimumFractionDigits: 2 };
+            const result = new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(parseFloat(value) / 100);
+            
+            event.target.value = value ? result : "";
         }
 
         async function handlePriceSaveFornecedor(event) {
             const btn = event.currentTarget;
-            const itemId = btn.dataset.itemId;
-            const input = document.querySelector(`.price-input[data-item-id="${itemId}"]`);
-            if (!input) return;
-
-            const newPrice = parseFloat(input.value) || 0;
+            const newPriceStr = input.value;
+            const newPrice = parseCurrency(newPriceStr);
+            
             btn.disabled = true;
             btn.innerHTML = `<svg class="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
 
@@ -697,6 +741,92 @@
             } catch (error) {
                 showFeedback("Houve um erro ao sincronizar alguns itens.", "warning");
             } finally {
+                const filterSelect = document.getElementById('quote-status-filter');
+                renderSupplierQuotes(supplierId, filterSelect ? filterSelect.value : 'open');
+            }
+        }
+
+        async function handleUpdateAllPrices() {
+            const { appData, supplierId } = pageState;
+            const inputs = document.querySelectorAll('.price-input:not(:disabled)');
+            const itemsToUpdate = [];
+
+            inputs.forEach(input => {
+                const itemId = input.dataset.itemId;
+                const item = appData.quoteItems.find(i => i.id === itemId);
+                const currentPrice = item ? item.property_preco : 0;
+                const newPrice = parseCurrency(input.value);
+
+                // Só atualiza se o preço for diferente e maior que zero
+                if (newPrice > 0 && newPrice !== currentPrice) {
+                    itemsToUpdate.push({
+                        id: itemId,
+                        price: newPrice,
+                        input: input
+                    });
+                }
+            });
+
+            if (itemsToUpdate.length === 0) {
+                showFeedback("Nenhum preço novo detectado para atualizar.", "info");
+                return;
+            }
+
+            const total = itemsToUpdate.length;
+            const progressContainer = document.getElementById('quote-progress-container');
+            const progressText = document.getElementById('quote-progress-text');
+            const updateBtn = document.getElementById('update-all-prices-btn');
+
+            if (progressContainer) progressContainer.classList.remove('hidden');
+            if (updateBtn) {
+                updateBtn.disabled = true;
+                updateBtn.style.opacity = '0.5';
+            }
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            try {
+                for (let i = 0; i < total; i++) {
+                    const updateItem = itemsToUpdate[i];
+                    if (progressText) progressText.innerText = `Atualizando ${i + 1} de ${total} preços...`;
+
+                    const itemIndex = appData.quoteItems.findIndex(item => item.id === updateItem.id);
+                    if (itemIndex !== -1) {
+                        appData.quoteItems[itemIndex].property_preco = updateItem.price;
+                        if (['Criado', 'Enviado Fornecedor'].includes(appData.quoteItems[itemIndex].property_status)) {
+                            appData.quoteItems[itemIndex].property_status = 'Respondido';
+                        }
+                    }
+
+                    try {
+                        await updateQuoteItemApi(updateItem.id, {
+                            price: updateItem.price,
+                            status: appData.quoteItems[itemIndex].property_status
+                        });
+                        successCount++;
+                    } catch (err) {
+                        console.error(`Erro ao atualizar item ${updateItem.id}:`, err);
+                        errorCount++;
+                    }
+                }
+
+                saveAppData(appData);
+                
+                if (errorCount === 0) {
+                    showFeedback(`${successCount} preços atualizados com sucesso!`, "success");
+                } else {
+                    showFeedback(`${successCount} atualizados, ${errorCount} falharam.`, "warning");
+                }
+
+            } catch (error) {
+                showError("Erro durante o processamento em lote.");
+            } finally {
+                if (progressContainer) progressContainer.classList.add('hidden');
+                if (updateBtn) {
+                    updateBtn.disabled = false;
+                    updateBtn.style.opacity = '1';
+                }
                 const filterSelect = document.getElementById('quote-status-filter');
                 renderSupplierQuotes(supplierId, filterSelect ? filterSelect.value : 'open');
             }

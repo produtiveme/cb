@@ -1019,6 +1019,31 @@ function formatDate(dateInput) {
 }
 
 /**
+ * Formata um número para moeda BRL (R$ 0,00)
+ * @param {number} value
+ * @returns {string}
+ */
+function formatCurrency(value) {
+  if (value === undefined || value === null || isNaN(value)) return "R$ 0,00";
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  }).format(value);
+}
+
+/**
+ * Converte uma string formatada em moeda para número
+ * @param {string} value
+ * @returns {number}
+ */
+function parseCurrency(value) {
+  if (!value) return 0;
+  // Remove R$, espaços e pontos de milhar, troca vírgula por ponto
+  const cleanValue = value.replace(/[R$\s.]/g, '').replace(',', '.');
+  return parseFloat(cleanValue) || 0;
+}
+
+/**
  * Carrega todos os dados iniciais do N8N
  * (Usado no Login e no botão Atualizar Dados)
  */
@@ -1103,5 +1128,7 @@ export {
   showFeedback, // Exporta o feedback genérico também
   showConfirmationModal,
   // Formato
-  formatDate
+  formatDate,
+  formatCurrency,
+  parseCurrency
 };
