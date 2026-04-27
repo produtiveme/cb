@@ -54,7 +54,6 @@
             getUrlParam,
             getQuoteById,
             getSupplierById,
-            getSupplierName,
             getProductName,
             updateQuoteItemApi,
             formatCurrency,
@@ -294,108 +293,6 @@
         }
 
         /**
-         * Calcula a posição competitiva de um item de cotação entre os concorrentes
-         */
-        function buildPriceComparison(item, quote, appData) {
-            const allItemIds = quote.property_item || [];
-            const allItems = allItemIds
-                .map(id => appData.quoteItems.find(i => i.id === id))
-                .filter(Boolean);
-
-            const totalItems = allItems.length;
-            const hasOtherUnpriced = allItems.some(i =>
-                i.id !== item.id && (!i.property_preco || i.property_preco === 0)
-            );
-            const pricedItems = allItems.filter(i => i.property_preco > 0);
-
-            if (!item.property_preco || item.property_preco === 0) {
-                return { rank: null, pricedTotal: pricedItems.length, totalItems, hasOtherUnpriced, competitors: pricedItems.sort((a, b) => a.property_preco - b.property_preco).map(i => ({ supplierId: i.property_fornecedor?.[0], price: i.property_preco, isThis: i.id === item.id })) };
-            }
-
-            const sorted = [...pricedItems].sort((a, b) => a.property_preco - b.property_preco);
-            const rank = sorted.findIndex(i => i.id === item.id) + 1;
-            return {
-                rank, pricedTotal: pricedItems.length, totalItems, hasOtherUnpriced,
-                competitors: sorted.map(i => ({ supplierId: i.property_fornecedor?.[0], price: i.property_preco, isThis: i.id === item.id }))
-            };
-        }
-
-        /**
-         * Renderiza o card de resumo competitivo do fornecedor
-         */
-        function renderPriceSummaryCard(supplierItems, appData) {
-            let lowest = 0, highest = 0, intermediate = 0, noComparison = 0;
-            supplierItems.forEach(({ item, quote }) => {
-                const comp = buildPriceComparison(item, quote, appData);
-                if (!comp || comp.rank === null || comp.pricedTotal <= 1) { noComparison++; return; }
-                if (comp.rank === 1) lowest++;
-                else if (comp.rank === comp.pricedTotal) highest++;
-                else intermediate++;
-            });
-            const withComparisons = lowest + highest + intermediate;
-            if (withComparisons === 0) return '';
-            return `
-                <div class="mb-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <div class="flex items-center mb-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                        <h4 class="text-sm font-bold text-gray-700 ml-2">Posição Competitiva</h4>
-                        <span class="ml-2 text-xs text-gray-400">(baseado nos preços informados)</span>
-                    </div>
-                    <div class="flex flex-wrap gap-2">
-                        ${lowest > 0 ? `<div class="px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-green-700 font-semibold text-sm">🟢 ${lowest} menor${lowest > 1 ? 'es' : ''} preço</div>` : ''}
-                        ${intermediate > 0 ? `<div class="px-3 py-1.5 bg-yellow-50 border border-yellow-200 rounded-full text-yellow-700 font-semibold text-sm">🟡 ${intermediate} intermediário${intermediate > 1 ? 's' : ''}</div>` : ''}
-                        ${highest > 0 ? `<div class="px-3 py-1.5 bg-red-50 border border-red-200 rounded-full text-red-600 font-semibold text-sm">🔴 ${highest} maior${highest > 1 ? 'es' : ''} preço</div>` : ''}
-                        ${noComparison > 0 ? `<div class="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full text-gray-500 text-sm">⚪ ${noComparison} sem comparação</div>` : ''}
-                    </div>
-                </div>`;
-        }
-
-        /**
-         * Renderiza o badge de posição inline na linha da tabela
-         */
-        function renderPriceBadgeHtml(comp) {
-            if (!comp || comp.rank === null) return '';
-            if (comp.pricedTotal <= 1) {
-                return comp.hasOtherUnpriced ? `<div class="mt-1 text-xs text-amber-500">⚠️ Aguardando outros preços</div>` : '';
-            }
-            const rankText = comp.rank === 1
-                ? `<span class="text-green-700 font-semibold">🟢 Menor preço</span>`
-                : comp.rank === comp.pricedTotal
-                    ? `<span class="text-red-600 font-semibold">🔴 Maior preço</span>`
-                    : `<span class="text-yellow-600 font-semibold">🟡 Intermediário</span>`;
-            const unpriced = comp.hasOtherUnpriced ? ` <span class="text-amber-500" title="${comp.totalItems - comp.pricedTotal} fornecedor(es) sem preço">⚠️</span>` : '';
-            return `<div class="mt-1 text-xs flex items-center gap-1">${rankText} <span class="text-gray-400">· ${comp.rank}º de ${comp.pricedTotal}</span>${unpriced}</div>`;
-        }
-
-        /**
-         * Renderiza a linha oculta de comparativo de preços com concorrentes
-         */
-        function renderCompetitorRowHtml(item, comp, quote) {
-            if (!comp || comp.competitors.length === 0) return '';
-            const medals = ['🥇', '🥈', '🥉'];
-            const rows = comp.competitors.map((c, idx) => {
-                const medal = medals[idx] || `${idx + 1}º`;
-                const name = getSupplierName(c.supplierId);
-                const isThis = c.isThis;
-                return `<div class="flex items-center justify-between py-1.5 px-2 rounded ${isThis ? 'bg-blue-50' : ''}">
-                    <div class="flex items-center gap-2"><span>${medal}</span><span class="text-sm ${isThis ? 'font-bold text-blue-800' : 'text-gray-700'}">${name}${isThis ? ' <em class="font-normal text-xs text-blue-400">(este fornecedor)</em>' : ''}</span></div>
-                    <span class="text-sm font-semibold ${isThis ? 'text-blue-700' : 'text-gray-600'}">${formatCurrency(c.price)}</span>
-                </div>`;
-            }).join('');
-            const unpricedNote = comp.hasOtherUnpriced
-                ? `<div class="mt-2 text-xs text-amber-600 bg-amber-50 rounded p-2">⚠️ ${comp.totalItems - comp.pricedTotal} fornecedor(es) desta cotação ainda não informaram o preço.</div>`
-                : '';
-            const quoteName = (quote && quote.property_nome) ? ` — ${quote.property_nome}` : '';
-            return `<tr id="competitor-row-${item.id}" class="hidden">
-                <td colspan="6" class="px-10 py-3 bg-gray-50 border-t border-gray-100">
-                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Comparativo de Preços${quoteName}</p>
-                    <div class="max-w-md space-y-0.5">${rows}</div>
-                    ${unpricedNote}
-                </td>
-            </tr>`;
-        }
-
-        /**
          * Renderiza as cotações do fornecedor
          */
         function renderSupplierQuotes(supplierId, filterType) {
@@ -406,20 +303,17 @@
             let supplierItems = appData.quoteItems.filter(item => {
                 const fornecedores = item.property_fornecedor;
                 if (!fornecedores) return false;
-                // Suporte a string (ID único) ou array de IDs
                 if (Array.isArray(fornecedores)) return fornecedores.includes(supplierId);
                 return String(fornecedores).trim() === String(supplierId).trim();
             });
 
             supplierItems = supplierItems.map(item => {
-                // Lookup PRIMÁRIO: usa a referência da cotação que o item carrega
                 const quoteIdList = item.property_cota_o || item.property_cotacao;
                 let quote = null;
                 if (quoteIdList && quoteIdList.length > 0) {
                     const quoteId = Array.isArray(quoteIdList) ? quoteIdList[0] : quoteIdList;
                     quote = appData.quotes.find(q => String(q.id).trim() === String(quoteId).trim());
                 }
-                // Fallback: busca reversa via property_item na cotação
                 if (!quote) {
                     quote = appData.quotes.find(q => q.property_item && q.property_item.includes(item.id));
                 }
@@ -439,27 +333,17 @@
                 return;
             }
 
-            // Verifica se há itens aprovados para mostrar o botão "Enviar Todos"
             const approvedItems = supplierItems.filter(obj => obj.item.property_status === 'Aprovado');
 
-            // Compila cada linha com try-catch individual para surfaçar erros
             let rowsHtml = '';
             supplierItems.forEach(obj => {
                 try {
-                    rowsHtml += renderSupplierQuoteRow(obj.item, obj.quote, appData);
+                    rowsHtml += renderSupplierQuoteRow(obj.item, obj.quote);
                 } catch (err) {
                     console.error('[renderSupplierQuotes] Erro ao renderizar item:', obj.item?.id, err);
                     rowsHtml += `<tr><td colspan="6" class="px-4 py-2 text-xs text-red-500 bg-red-50">⚠️ Erro ao renderizar item ${obj.item?.id}: ${err.message}</td></tr>`;
                 }
             });
-
-            // Compila o card de resumo com fallback seguro
-            let summaryCardHtml = '';
-            try {
-                summaryCardHtml = renderPriceSummaryCard(supplierItems, appData);
-            } catch (err) {
-                console.error('[renderSupplierQuotes] Erro no card de resumo:', err);
-            }
 
             container.innerHTML = `
                 ${approvedItems.length > 0 ? `
@@ -474,9 +358,6 @@
                     </button>
                 </div>
                 ` : ''}
-
-                <!-- Card de Posição Competitiva -->
-                ${summaryCardHtml}
 
                 <!-- Botão Atualizar Todos os Preços -->
                 <div class="mb-4 flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
@@ -509,7 +390,7 @@
             addSupplierQuoteListeners();
         }
 
-        function renderSupplierQuoteRow(item, quote, appData) {
+        function renderSupplierQuoteRow(item, quote) {
             const status = item.property_status || 'Criado';
             const preco = item.property_preco || 0;
             const productName = getProductName(quote.property_produto[0]);
@@ -537,13 +418,6 @@
             }
 
             const canEdit = !['Aprovado', 'Rejeitado', 'Pedido Enviado'].includes(status);
-
-            // === Comparação de preços ===
-            const comp = (appData) ? buildPriceComparison(item, quote, appData) : null;
-            const priceBadgeHtml = renderPriceBadgeHtml(comp);
-            const hasCompetitors = comp && comp.competitors.length > 0;
-            const toggleBtnHtml = hasCompetitors ? `<button class="toggle-competitors-btn mt-1 text-xs text-blue-500 hover:text-blue-700 transition-colors flex items-center gap-0.5" data-item-id="${item.id}">Ver concorrentes <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg></button>` : '';
-            const competitorRowHtml = renderCompetitorRowHtml(item, comp, quote);
 
             return `
               <tr class="${rowBgColor} transition-colors duration-200">
@@ -577,8 +451,6 @@
                       ><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg></button>
                     ` : ''}
                   </div>
-                  ${priceBadgeHtml}
-                  ${toggleBtnHtml}
                 </td>
                 <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
                   ${canEdit ? `
@@ -597,7 +469,6 @@
                   <button class="open-wpp-btn p-1.5 rounded-full text-white transition-colors" style="background-color: #25D366;" data-item-id="${item.id}" data-quote-id="${quote.id}"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413 0 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.451-4.437-9.887-9.888-9.888-5.451 0-9.887 4.434-9.889 9.888.001 2.228.651 4.385 1.849 6.206l-.341 1.246 1.267-.328zM9.06 8.076C8.86 7.633 8.56 7.534 8.29 7.522c-.258-.011-.532-.011-.79-.011-.315 0-.715.116-1.091.554-.42.472-.647 1.05-.67 1.121-.023.07-.442 1.134.214 2.309.615 1.09 1.575 2.158 3.48 3.868 2.16 1.916 3.326 2.486 4.36 2.977 1.537.731 2.265.628 2.91.39 1.004-.37 2.06-.213 2.06-.213s.442-.04 1.002-.685c.56-.645.56-.998.51-.998s-.442-.212-1.002-.472c-.56-.26-1.002-.37-1.122-.37-.12 0-.26 0-.37.212-.12.213-.47.561-.68.731-.21.17-.42.213-.64.09-.26-.12-.47-.213-1.002-.472-1.346-.645-2.16-1.031-2.68-1.804-.37-.645-.04-1.002.12-1.122.12-.12.26-.26.37-.37.12-.12.21-.213.3-.37.12-.17.04-.42 0-.645-.04-.213-.56-1.346-.73-1.804z"/></svg></button>
                 </td>
               </tr>
-              ${competitorRowHtml}
             `;
         }
 
@@ -633,21 +504,6 @@
             if (updateAllBtn) {
                 updateAllBtn.addEventListener('click', handleUpdateAllPrices);
             }
-
-            // Toggle de concorrentes por linha
-            document.querySelectorAll('.toggle-competitors-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const itemId = e.currentTarget.dataset.itemId;
-                    const row = document.getElementById(`competitor-row-${itemId}`);
-                    if (!row) return;
-                    const isHidden = row.classList.contains('hidden');
-                    row.classList.toggle('hidden');
-                    const svg = e.currentTarget.querySelector('svg');
-                    e.currentTarget.innerHTML = isHidden
-                        ? `Ocultar <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>`
-                        : `Ver concorrentes <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>`;
-                });
-            });
         }
 
         /**
