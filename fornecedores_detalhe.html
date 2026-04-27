@@ -401,12 +401,26 @@
             const container = document.getElementById('supplier-quotes-container');
             if (!container) return;
 
-            let supplierItems = appData.quoteItems.filter(item => 
-                item.property_fornecedor && item.property_fornecedor.includes(supplierId)
-            );
+            let supplierItems = appData.quoteItems.filter(item => {
+                const fornecedores = item.property_fornecedor;
+                if (!fornecedores) return false;
+                // Suporte a string (ID único) ou array de IDs
+                if (Array.isArray(fornecedores)) return fornecedores.includes(supplierId);
+                return String(fornecedores).trim() === String(supplierId).trim();
+            });
 
             supplierItems = supplierItems.map(item => {
-                const quote = appData.quotes.find(q => q.property_item && q.property_item.includes(item.id));
+                // Lookup PRIMÁRIO: usa a referência da cotação que o item carrega
+                const quoteIdList = item.property_cota_o || item.property_cotacao;
+                let quote = null;
+                if (quoteIdList && quoteIdList.length > 0) {
+                    const quoteId = Array.isArray(quoteIdList) ? quoteIdList[0] : quoteIdList;
+                    quote = appData.quotes.find(q => String(q.id).trim() === String(quoteId).trim());
+                }
+                // Fallback: busca reversa via property_item na cotação
+                if (!quote) {
+                    quote = appData.quotes.find(q => q.property_item && q.property_item.includes(item.id));
+                }
                 return { item, quote };
             }).filter(obj => obj.quote);
 
