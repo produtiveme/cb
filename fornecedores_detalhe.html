@@ -441,6 +441,25 @@
             // Verifica se há itens aprovados para mostrar o botão "Enviar Todos"
             const approvedItems = supplierItems.filter(obj => obj.item.property_status === 'Aprovado');
 
+            // Compila cada linha com try-catch individual para surfaçar erros
+            let rowsHtml = '';
+            supplierItems.forEach(obj => {
+                try {
+                    rowsHtml += renderSupplierQuoteRow(obj.item, obj.quote, appData);
+                } catch (err) {
+                    console.error('[renderSupplierQuotes] Erro ao renderizar item:', obj.item?.id, err);
+                    rowsHtml += `<tr><td colspan="6" class="px-4 py-2 text-xs text-red-500 bg-red-50">⚠️ Erro ao renderizar item ${obj.item?.id}: ${err.message}</td></tr>`;
+                }
+            });
+
+            // Compila o card de resumo com fallback seguro
+            let summaryCardHtml = '';
+            try {
+                summaryCardHtml = renderPriceSummaryCard(supplierItems, appData);
+            } catch (err) {
+                console.error('[renderSupplierQuotes] Erro no card de resumo:', err);
+            }
+
             container.innerHTML = `
                 ${approvedItems.length > 0 ? `
                 <div class="mb-4 flex justify-end space-x-2">
@@ -456,7 +475,7 @@
                 ` : ''}
 
                 <!-- Card de Posição Competitiva -->
-                ${renderPriceSummaryCard(supplierItems, appData)}
+                ${summaryCardHtml}
 
                 <!-- Botão Atualizar Todos os Preços -->
                 <div class="mb-4 flex justify-between items-center bg-gray-50 p-3 rounded-lg border border-gray-100">
@@ -480,7 +499,7 @@
                         </tr>
                       </thead>
                       <tbody class="bg-white divide-y divide-gray-200">
-                        ${supplierItems.map(obj => renderSupplierQuoteRow(obj.item, obj.quote, appData)).join('')}
+                        ${rowsHtml}
                       </tbody>
                     </table>
                 </div>
