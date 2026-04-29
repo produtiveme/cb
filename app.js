@@ -990,8 +990,14 @@ function showConfirmationModal({ title, messageHtml, confirmText, cancelText, as
 function formatDate(dateInput) {
   if (!dateInput) return "Data inválida"; // Verifica se a entrada é válida
 
+  // Se for um objeto do Notion { start: "..." }
+  let finalInput = dateInput;
+  if (typeof dateInput === 'object' && dateInput.start) {
+    finalInput = dateInput.start;
+  }
+
   try {
-    const date = new Date(dateInput);
+    const date = new Date(finalInput);
     // Verifica se a data é válida após a conversão
     if (isNaN(date.getTime())) {
       throw new Error("Data inválida após conversão");

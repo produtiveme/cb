@@ -233,8 +233,11 @@
         const qtdStr = item.property_quantidade != null ? item.property_quantidade : '-';
         
         // Cores de fundo baseadas na efetivação
-        const rowBgClass = item.property_efetivado_em ? 'bg-green-50' : 'bg-red-50';
-        const efetivadoData = item.property_efetivado_em ? formatDate(item.property_efetivado_em) : '-';
+        const efetivadoRaw = item.property_efetivado_em;
+        const efetivadoValue = (efetivadoRaw && typeof efetivadoRaw === 'object') ? efetivadoRaw.start : efetivadoRaw;
+        
+        const rowBgClass = efetivadoValue ? 'bg-green-50' : 'bg-red-50';
+        const efetivadoData = efetivadoValue ? formatDate(efetivadoValue) : '-';
 
         return `
           <tr class="${rowBgClass} hover:bg-opacity-70 transition-colors">
