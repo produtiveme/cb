@@ -232,13 +232,25 @@
         const valorPagoStr = formatCurrency(item.property_pre_o_da_cota_o);
         const qtdStr = item.property_quantidade != null ? item.property_quantidade : '-';
         
+        // Cores de fundo baseadas na efetivação
+        const rowBgClass = item.property_efetivado_em ? 'bg-green-50' : 'bg-red-50';
+        const efetivadoData = item.property_efetivado_em ? formatDate(item.property_efetivado_em) : '-';
+
         return `
-          <tr>
+          <tr class="${rowBgClass} hover:bg-opacity-70 transition-colors">
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${formatDate(item.property_criado_em)}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">${efetivadoData}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${cotacaoStr}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${fornecedorNome}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">+${qtdStr}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${valorPagoStr}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              <a href="${item.url}" target="_blank" class="text-blue-600 hover:text-blue-900 inline-flex items-center" title="Abrir no Notion">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </td>
           </tr>
         `;
       }).join('');
@@ -249,11 +261,13 @@
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data da Entrada</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data de Criação</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data de Entrada no Estoque</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cotação</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fornecedor</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantidade</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Pago</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Link</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
