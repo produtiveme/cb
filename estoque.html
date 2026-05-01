@@ -468,15 +468,14 @@
       const acaoBg = isComprar ? 'background-color:#FEE2E2; color:#991B1B;' : 'background-color:#D1FAE5; color:#065F46;';
 
       // Badge Situação
-      const status = product.property_situa_o_do_produto || 'Indefinido';
-      const statusColorClass = status === 'Ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
-
-      // Define a cor de fundo da linha com base nas regras de negócio
       const hasOpenQuote = pageState.appData.quotes.some(q => 
         q.property_produto && 
         q.property_produto.includes(product.id) && 
         !['Concluído', 'Finalizada'].includes(q.property_status)
       );
+
+      const status = hasOpenQuote ? 'Pendente' : 'Efetuado';
+      const statusColorClass = hasOpenQuote ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
 
       let rowBgClass = '';
       if (hasOpenQuote) {
