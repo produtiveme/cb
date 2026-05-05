@@ -656,6 +656,18 @@
           await updateQuoteItemApi(update.id, update.data);
         }
 
+        // RN-AUTO-FINALIZE: Se marcou como "Enviado Fornecedor", finaliza a cotação automaticamente
+        if (newStatus === 'Enviado Fornecedor') {
+          const quoteIndex = appData.quotes.findIndex(q => q.id === pageState.quoteId);
+          if (quoteIndex !== -1 && appData.quotes[quoteIndex].property_status !== 'Concluído') {
+            appData.quotes[quoteIndex].property_status = 'Concluído';
+            saveAppData(appData); // Salva mudança de status da cotação localmente
+            
+            showFeedback("Sincronizando status da cotação...", "info");
+            await finalizeQuoteApi(pageState.quoteId, 'Concluído');
+          }
+        }
+
         showFeedback("Todos os itens foram atualizados!", "success");
       } catch (error) {
         console.error("Erro ao sincronizar status:", error);
