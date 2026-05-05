@@ -57,6 +57,7 @@
             getSupplierName,
             getProductName,
             updateQuoteItemApi,
+            finalizeQuoteApi,
             formatCurrency,
             parseCurrency,
             COLORS
@@ -740,6 +741,19 @@
                 for (const update of updatesToDo) {
                     await updateQuoteItemApi(update.id, update.data);
                 }
+
+                // RN-AUTO-FINALIZE: Se marcou como "Enviado Fornecedor" ou "Aprovado", finaliza a cotação automaticamente
+                if (['Enviado Fornecedor', 'Aprovado'].includes(newStatus) && quoteId) {
+                    const quoteIndex = appData.quotes.findIndex(q => q.id === quoteId);
+                    if (quoteIndex !== -1 && appData.quotes[quoteIndex].property_status !== 'Concluído') {
+                        appData.quotes[quoteIndex].property_status = 'Concluído';
+                        saveAppData(appData); // Salva mudança de status da cotação localmente
+                        
+                        showFeedback("Sincronizando status da cotação...", "info");
+                        await finalizeQuoteApi(quoteId, 'Concluído');
+                    }
+                }
+
                 showFeedback("Status atualizado!", "success");
             } catch (error) {
                 showFeedback("Erro na sincronização.", "warning");
