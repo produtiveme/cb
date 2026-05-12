@@ -329,9 +329,13 @@
           (product.property_a_o_necess_ria === 'COMPRAR'); // Filtra por "Ação Necessária" = COMPRAR
 
         const { openQuotes } = pageState.filters;
-        const isPendente = product.property_situa_o === 'Pendente';
+        const hasOpenQuote = pageState.appData.quotes.some(q => 
+          q.property_produto && 
+          q.property_produto.includes(product.id) && 
+          !['Concluído', 'Finalizada'].includes(q.property_status)
+        );
 
-        const matchOpenQuotes = !openQuotes || isPendente;
+        const matchOpenQuotes = !openQuotes || hasOpenQuote;
 
         return matchName && matchSupplier && matchCategory && matchStockLow && matchOpenQuotes;
       });
@@ -470,7 +474,13 @@
       else if (status === 'Efetuado') statusColorClass = 'bg-green-100 text-green-800';
 
       let rowBgClass = '';
-      if (status === 'Pendente') {
+      const hasOpenQuote = pageState.appData.quotes.some(q => 
+        q.property_produto && 
+        q.property_produto.includes(product.id) && 
+        !['Concluído', 'Finalizada'].includes(q.property_status)
+      );
+
+      if (hasOpenQuote) {
         rowBgClass = 'bg-yellow-100 hover:bg-yellow-200 transition-colors duration-200';
       } else if (acaoNecessaria === 'COMPRAR') {
         rowBgClass = 'bg-red-50 hover:bg-red-100 transition-colors duration-200';
