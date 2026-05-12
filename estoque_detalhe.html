@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detalhe do Estoque - Gestão de Cotação</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
 
 </head>
+
 <body>
 
   <div class="flex flex-col md:flex-row min-h-screen">
-    
+
     <!-- Sidebar (será preenchida pelo app.js) -->
     <div id="sidebar-container"></div>
 
@@ -25,7 +27,7 @@
 
       <!-- Container para Alertas -->
       <div id="error-container" class="fixed top-5 right-5 z-50 w-full max-w-sm"></div>
-      
+
       <!-- Container do Modal (inicialmente oculto) -->
       <div id="modal-container" class="hidden"></div>
 
@@ -33,7 +35,7 @@
       <div id="detail-content-container">
         <!-- O Spinner de carregamento ou os cards serão injetados aqui -->
       </div>
-      
+
     </main>
   </div>
 
@@ -64,7 +66,7 @@
       product: null,
       productHistory: []
     };
-    
+
     // --- Funções Principais ---
 
     /**
@@ -80,7 +82,7 @@
         showError("Falha ao carregar dados. Tente fazer login novamente.");
         return;
       }
-      
+
       // 3. Pega o ID do produto da URL
       pageState.productId = getUrlParam('id');
       if (!pageState.productId) {
@@ -88,7 +90,7 @@
         renderPageError("Produto não encontrado.");
         return;
       }
-      
+
       // 4. Encontra o produto
       pageState.product = getProductById(pageState.productId);
       if (!pageState.product) {
@@ -96,7 +98,7 @@
         renderPageError(`Produto com ID ${pageState.productId} não foi encontrado.`);
         return;
       }
-      
+
       // 5. Filtra o histórico para este produto (apenas Entradas)
       pageState.productHistory = pageState.appData.stockHistory
         .filter(item => item.property_produto && item.property_produto.includes(pageState.productId))
@@ -106,11 +108,11 @@
       // 6. Renderiza componentes estáticos
       renderSidebarNav('estoque'); // Mantém 'Estoque' como ativo
       renderFooter();
-      
+
       // 7. Renderiza a tela de detalhes
       renderEstoqueDetailScreen();
     }
-    
+
     /**
      * Renderiza o layout principal da tela de detalhes
      */
@@ -118,7 +120,7 @@
       const { product } = pageState;
       const container = document.getElementById('detail-content-container');
       if (!container) return;
-      
+
       // Botões do Cabeçalho
       const headerButtons = `
         <div class="flex items-center space-x-2">
@@ -139,14 +141,14 @@
           </a>
         </div>
       `;
-      
+
       // Renderiza Cabeçalho
       renderScreenHeader(
-        `Histórico: ${product.property_nome}`, 
-        `ID: ${product.id}`, 
+        `Histórico: ${product.property_nome}`,
+        `ID: ${product.id}`,
         headerButtons
       );
-      
+
       // Renderiza Conteúdo
       container.innerHTML = `
         <div class="space-y-6">
@@ -155,16 +157,16 @@
         </div>
       `;
     }
-    
+
     /**
      * Renderiza o card de Informações do Produto
      */
     function renderProductInfoCard() {
       const { product } = pageState;
-      
+
       const status = product.property_situa_o || 'Não Informado';
       let statusBadge = `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">${status}</span>`;
-      
+
       if (status === 'Pendente') {
         statusBadge = `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">${status}</span>`;
       } else if (status === 'Efetuado') {
@@ -205,13 +207,13 @@
         </div>
       `;
     }
-    
+
     /**
      * Renderiza o card da Tabela de Entradas
      */
     function renderInwardMovementsTableCard() {
       const { productHistory } = pageState;
-      
+
       if (productHistory.length === 0) {
         return `
           <div class="bg-white p-6 rounded-lg shadow border text-center text-gray-500">
@@ -219,27 +221,27 @@
           </div>
         `;
       }
-      
+
       const formatCurrency = (val) => val != null ? val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '-';
-      
+
       const tableRows = productHistory.map(item => {
         // Cotação: O JSON atual não traz uma chave de identificador de Cotação relacionando aos dados de Cotações diretamente.
         // Iremos usar o nome que eventualmente carrega informações de vínculo
         const cotacaoStr = item.property_nome && item.property_nome.trim() !== '' ? item.property_nome : '-';
-        
+
         let fornecedorNome = '-';
         if (item.property_fornecedor && item.property_fornecedor.length > 0) {
-           const sup = pageState.appData.suppliers ? pageState.appData.suppliers.find(s => s.id === item.property_fornecedor[0]) : null;
-           if (sup) fornecedorNome = sup.property_nome;
+          const sup = pageState.appData.suppliers ? pageState.appData.suppliers.find(s => s.id === item.property_fornecedor[0]) : null;
+          if (sup) fornecedorNome = sup.property_nome;
         }
 
         const valorPagoStr = formatCurrency(item.property_pre_o_da_cota_o);
         const qtdStr = item.property_quantidade != null ? item.property_quantidade : '-';
-        
+
         // Cores de fundo baseadas na efetivação
         const efetivadoRaw = item.property_efetivado_em;
         const efetivadoValue = (efetivadoRaw && typeof efetivadoRaw === 'object') ? efetivadoRaw.start : efetivadoRaw;
-        
+
         const rowBgClass = efetivadoValue ? 'bg-green-50' : 'bg-red-50';
         const efetivadoData = efetivadoValue ? formatDate(efetivadoValue) : '-';
 
@@ -261,7 +263,7 @@
           </tr>
         `;
       }).join('');
-      
+
       return `
         <div class="bg-white shadow-md rounded-lg border border-gray-200 overflow-auto">
           <h3 class="text-lg font-bold font-heading p-6" style="color: ${COLORS.black};">Histórico de Entradas</h3>
@@ -284,7 +286,7 @@
         </div>
       `;
     }
-    
+
     /**
      * Renderiza uma mensagem de erro na página
      */
@@ -313,4 +315,5 @@
   </script>
 
 </body>
+
 </html>

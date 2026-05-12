@@ -63,6 +63,7 @@
       getSupplierById, // <-- ADICIONADO
       updateQuoteItemApi, // <-- ADICIONADO
       finalizeQuoteApi, // <-- ADICIONADO
+      updateProductStatusApi, // <-- ADICIONADO
       formatDate,
       COLORS
     } from './app.js';
@@ -665,6 +666,11 @@
             
             showFeedback("Sincronizando status da cotação...", "info");
             await finalizeQuoteApi(pageState.quoteId, 'Concluído');
+            
+            // RN-SITUACAO: Atualiza situação do produto para "Efetuado"
+            if (pageState.quote.property_produto && pageState.quote.property_produto.length > 0) {
+                await updateProductStatusApi(pageState.quote.property_produto[0], 'Efetuado');
+            }
           }
         }
 
@@ -702,6 +708,11 @@
       try {
         showFeedback("Finalizando cotação...", "info");
         const response = await finalizeQuoteApi(quoteId, newStatus);
+
+        // RN-SITUACAO: Atualiza situação do produto para "Efetuado"
+        if (pageState.quote.property_produto && pageState.quote.property_produto.length > 0) {
+            await updateProductStatusApi(pageState.quote.property_produto[0], 'Efetuado');
+        }
 
         const msg = response.Message || response.message || "Cotação finalizada!";
         showFeedback(msg, "success");

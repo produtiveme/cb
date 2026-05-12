@@ -292,7 +292,8 @@ async function setupDynamicUrls(unitAlias) {
       createQuote: "/" + unitConfig.property_cria_cota_o_item,
       loadQuotes: "/" + unitConfig.property_todas_cota_es,
       finalizeQuote: "/" + unitConfig.property_finaliza_cota_o,
-      loadQuoteItems: "/" + unitConfig.property_carrega_item_cotacao
+      loadQuoteItems: "/" + unitConfig.property_carrega_item_cotacao,
+      updateProductStatus: "/" + unitConfig.property_atualiza_situa_o
     };
 
     const dynamicColor = unitConfig.property_cor_de_destaque || COLORS.orange;
@@ -399,6 +400,19 @@ async function finalizeQuoteApi(quoteId, status) {
     status: status
   };
   return await postApi(N8N_URLS.finalizeQuote, payload);
+}
+
+/**
+ * Atualiza o status (Situação) de um produto no Notion
+ * @param {string} productId ID do produto no Notion
+ * @param {string} status Novo status (ex: "Efetuado")
+ */
+async function updateProductStatusApi(productId, status) {
+  const payload = {
+    id: productId,
+    status: status
+  };
+  return await postApi(N8N_URLS.updateProductStatus, payload);
 }
 
 // --- 3. GESTÃO DE DADOS (localStorage) ---
@@ -1109,6 +1123,7 @@ export {
   loginApi, // Exporta a função de login
   updateQuoteItemApi, // Exporta atualização de item
   finalizeQuoteApi, // Exporta finalização de cotação
+  updateProductStatusApi, // Exporta atualização de status do produto
   loadInitialData, // <-- NOVA EXPORTAÇÃO
   loadUnitsApi, // Exporta a nova função de unidades
   setupDynamicUrls, // Exporta a função de setup dinâmico das URLs
