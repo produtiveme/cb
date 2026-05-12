@@ -162,16 +162,14 @@
     function renderProductInfoCard() {
       const { product } = pageState;
       
-      const hasOpenQuote = pageState.appData.quotes.some(q => 
-        q.property_produto && 
-        q.property_produto.includes(product.id) && 
-        !['Concluído', 'Finalizada'].includes(q.property_status)
-      );
-
-      const status = hasOpenQuote ? 'Pendente' : 'Efetuado';
-      const statusBadge = hasOpenQuote
-        ? `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">${status}</span>`
-        : `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">${status}</span>`;
+      const status = product.property_situa_o || 'Não Informado';
+      let statusBadge = `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">${status}</span>`;
+      
+      if (status === 'Pendente') {
+        statusBadge = `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">${status}</span>`;
+      } else if (status === 'Efetuado') {
+        statusBadge = `<span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">${status}</span>`;
+      }
 
       return `
         <div class="bg-white p-6 rounded-lg shadow border border-gray-200">
