@@ -60,7 +60,8 @@
             finalizeQuoteApi,
             formatCurrency,
             parseCurrency,
-            COLORS
+            updateProductStatusApi,
+
         } from './app.js';
 
         // --- Estado da Página ---
@@ -750,7 +751,13 @@
                         saveAppData(appData); // Salva mudança de status da cotação localmente
                         
                         showFeedback("Sincronizando status da cotação...", "info");
+                        // Atualiza status do produto para "Efetuado" via N8N
+                        const finalizedQuote = appData.quotes.find(q => q.id === quoteId);
+                        if (finalizedQuote && finalizedQuote.property_produto && finalizedQuote.property_produto[0]) {
+                            await updateProductStatusApi(finalizedQuote.property_produto[0], 'Efetuado');
+                        }
                         await finalizeQuoteApi(quoteId, 'Concluído');
+
                     }
                 }
 
