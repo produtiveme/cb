@@ -9,6 +9,7 @@
 
   <!-- Estilo Global Centralizado -->
   <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="loadingOverlay.css">
 
 </head>
 
@@ -67,6 +68,7 @@
       formatDate,
       COLORS
     } from './app.js';
+import { showLoading, hideLoading } from './loadingOverlay.js';
 
     // --- Estado da Página ---
     const pageState = {
@@ -515,6 +517,7 @@
      * Salva o preço do item (acionado pelo botão Salvar)
      */
     async function handlePriceSave(event) {
+  showLoading('Salvando preço...');
       const btn = event.currentTarget;
       const itemId = btn.dataset.itemId;
 
@@ -587,6 +590,7 @@
      * Lida com Aprovar/Rejeitar um item
      */
     async function handleItemStatusUpdate(itemId, newStatus) {
+  showLoading('Atualizando item...');
       const { appData, quoteItems } = pageState;
 
       // 1. Encontrar o item e o índice
@@ -681,13 +685,15 @@
       }
 
       // 6. Re-renderizar
-      init();
+      hideLoading();
+        init();
     }
 
     /**
      * Lida com a finalização da cotação
      */
     async function handleFinalizeQuote() {
+  showLoading('Finalizando cotação...');
       const { appData, quoteId } = pageState;
 
       // 1. Encontrar a cotação
@@ -723,7 +729,8 @@
       }
 
       // 5. Re-renderizar
-      init();
+      hideLoading();
+        init();
     }
 
     /**
