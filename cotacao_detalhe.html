@@ -582,6 +582,7 @@ import { showLoading, hideLoading } from './loadingOverlay.js';
 
         // Re-renderizar a tela para atualizar status (ex: mudou para Respondido)
         // Isso também vai esconder o botão de salvar pois o renderItemRow o cria hidden
+        hideLoading();
         init();
       }
     }
