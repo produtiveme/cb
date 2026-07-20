@@ -286,14 +286,14 @@ async function setupDynamicUrls(unitAlias) {
     const dynamicUrls = {
       loadProducts: "/" + unitConfig.property_carrega_produto,
       loadProductSuppliers: "/" + unitConfig.property_carrega_todo_produto_fornecedor,
-      loadStockHistory: "/" + unitConfig.property_carrega_todo_hist_rico_estoque,
+      loadStockHistory: "/" + (unitConfig.property_carrega_todo_histórico_estoque || unitConfig.property_carrega_todo_hist_rico_estoque),
       loadSuppliers: "/" + unitConfig.property_carrega_todo_fornecedor,
       updateQuoteItem: "/" + unitConfig.property_atualiza_item_cotacao,
-      createQuote: "/" + unitConfig.property_cria_cota_o_item,
-      loadQuotes: "/" + unitConfig.property_todas_cota_es,
-      finalizeQuote: "/" + unitConfig.property_finaliza_cota_o,
+      createQuote: "/" + (unitConfig.property_cria_cotação_item || unitConfig.property_cria_cota_o_item),
+      loadQuotes: "/" + (unitConfig.property_todas_cotações || unitConfig.property_todas_cota_es),
+      finalizeQuote: "/" + (unitConfig.property_finaliza_cotação || unitConfig.property_finaliza_cota_o),
       loadQuoteItems: "/" + unitConfig.property_carrega_item_cotacao,
-      updateProductStatus: "/" + unitConfig.property_atualiza_situa_o
+      updateProductStatus: "/" + (unitConfig.property_atualiza_situação || unitConfig.property_atualiza_situa_o)
     };
 
     const dynamicColor = unitConfig.property_cor_de_destaque || COLORS.orange;
