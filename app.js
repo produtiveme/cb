@@ -1087,17 +1087,25 @@ async function loadInitialData() {
 
     // Estrutura os dados
     const appData = {
-      products: productsData,
+      // Normalização de dados (N8N vs App) para suportar versões com ou sem acentos
+      products: productsData.map(p => ({
+        ...p,
+        property_situa_o: p.property_situação !== undefined ? p.property_situação : (p.property_situa_o || ''),
+        property_a_o_necess_ria: p.property_ação_necessária !== undefined ? p.property_ação_necessária : (p.property_a_o_necess_ria || ''),
+        property_descri_o_do_produto: p.property_descrição_do_produto !== undefined ? p.property_descrição_do_produto : (p.property_descri_o_do_produto || '')
+      })),
       suppliers: suppliersData,
       productSuppliers: productSuppliersData,
       quotes: quotesData,
-      // Normalização de dados (N8N vs App)
-      // O N8N pode retornar 'property_pre_o', mas a aplicação espera 'property_preco'
       quoteItems: quoteItemsData.map(item => ({
         ...item,
-        property_preco: (item.property_pre_o !== undefined) ? item.property_pre_o : (item.property_preco || 0)
+        property_preco: item.property_preço !== undefined ? item.property_preço : (item.property_pre_o !== undefined ? item.property_pre_o : (item.property_preco || 0)),
+        property_cota_o: item.property_cotação !== undefined ? item.property_cotação : (item.property_cota_o || item.property_cotacao)
       })),
-      stockHistory: stockHistoryData
+      stockHistory: stockHistoryData.map(h => ({
+        ...h,
+        property_pre_o_da_cota_o: h.property_preço_da_cotação !== undefined ? h.property_preço_da_cotação : (h.property_pre_o_da_cota_o || h.property_preco_da_cotacao || 0)
+      }))
     };
 
     // Salva tudo no localStorage
